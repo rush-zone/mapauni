@@ -10,7 +10,7 @@ export default async function CursosPage() {
 
   let courses: any[] = []
   try {
-    const res = await api.get(`/courses?universityId=${universityId}&limit=50&active=false`, {
+    const res = await api.get<{ data: any[] }>(`/courses?universityId=${universityId}&limit=50&active=false`, {
       Authorization: `Bearer ${token}`,
     })
     courses = res.data
