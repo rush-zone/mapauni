@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"D:/sistemas_2026/mapauni/apps/web/src/app/api/auth/\\\\[...nextauth\\\\]\")",
+      "Bash(mkdir -p \"D:/sistemas_2026/mapauni/apps/web/src/app/\\\\\\(public\\\\\\)/universidades/\\\\[slug\\\\]\")",
+      "Bash(mkdir -p \"D:/sistemas_2026/mapauni/apps/web/src/app/\\\\\\(public\\\\\\)/cursos/\\\\[slug\\\\]\")",
+      "Bash(pnpm install:*)",
+      "Bash(docker --version)",
+      "Bash(pnpm --version)",
+      "Bash(PRISMA_ENGINES_MIRROR=https://binaries.prisma.sh pnpm install --ignore-scripts)"
+    ]
+  }
+}
