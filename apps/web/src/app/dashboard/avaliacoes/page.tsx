@@ -9,7 +9,7 @@ export default async function AvaliacoesPage() {
 
   let reviews: any[] = []
   try {
-    const res = await api.get('/reviews', { Authorization: `Bearer ${token}` })
+    const res = await api.get<{ data: any[] }>('/reviews', { Authorization: `Bearer ${token}` })
     reviews = res.data
   } catch {}
 
