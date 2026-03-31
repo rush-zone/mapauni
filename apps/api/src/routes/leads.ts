@@ -27,21 +27,27 @@ export async function leadRoutes(app: FastifyInstance) {
 
     const lead = await prisma.lead.create({ data: body })
 
-    // Send email notification (non-blocking)
-    if (university.email) {
-      const course = body.courseId
-        ? await prisma.course.findUnique({ where: { id: body.courseId }, select: { name: true } })
-        : null
+    // Send email notification to university admin users (non-blocking)
+    const [admins, course] = await Promise.all([
+      prisma.universityUser.findMany({
+        where: { universityId: body.universityId, role: { in: ['OWNER', 'MANAGER'] } },
+        select: { email: true },
+      }),
+      body.courseId
+        ? prisma.course.findUnique({ where: { id: body.courseId }, select: { name: true } })
+        : Promise.resolve(null),
+    ])
 
+    for (const admin of admins) {
       sendNewLeadEmail({
-        to: university.email,
+        to: admin.email,
         universityName: university.name,
         studentName: body.name,
         studentEmail: body.email,
         studentPhone: body.phone,
         courseName: course?.name,
         message: body.message,
-      }).catch(() => {}) // silently ignore email errors
+      }).catch(() => {})
     }
 
     return reply.status(201).send(lead)
