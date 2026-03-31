@@ -2,7 +2,7 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-const FROM = 'MapaUni <noreply@mapauni.com.br>'
+const FROM = process.env.EMAIL_FROM || 'MapaUni <noreply@fatrote.resend.app>'
 
 export async function sendNewLeadEmail({
   to,
