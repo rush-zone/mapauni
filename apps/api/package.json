@@ -2,6 +2,7 @@
   "name": "@mapauni/api",
   "version": "0.0.1",
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
