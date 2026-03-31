@@ -66,7 +66,7 @@ export default async function UniversityPage({ params }: { params: { slug: strin
       </nav>
 
       {/* Cover */}
-      <div className="relative h-52 bg-gradient-to-r from-blue-700 to-blue-500 overflow-hidden">
+      <div className="relative h-52 bg-blue-600 overflow-hidden">
         {uni.coverUrl && (
           <img src={uni.coverUrl} alt="Capa" className="w-full h-full object-cover" />
         )}
