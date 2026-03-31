@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "additionalDirectories": [
+      "d:\\sistemas_2026\\mapauni\\apps\\web\\src\\app\\(public)\\cursos\\[slug]"
+    ],
+    "allow": [
+      "Bash(ls \"d:/sistemas_2026/mapauni/apps/web/src/app/\\(public\\)/cursos/[slug]/\")"
+    ]
+  }
+}

@@ -6,9 +6,10 @@ interface LeadFormProps {
   universityId: string
   universityName: string
   courseId?: string
+  courseName?: string
 }
 
-export function LeadForm({ universityId, universityName, courseId }: LeadFormProps) {
+export function LeadForm({ universityId, universityName, courseId, courseName }: LeadFormProps) {
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' })
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
 
