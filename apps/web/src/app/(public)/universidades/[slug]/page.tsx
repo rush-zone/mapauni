@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { api } from '@/lib/api'
 import { LeadForm } from '@/components/lead/LeadForm'
 import { UniversityGallery } from './UniversityGallery'
+import { ReviewForm } from './ReviewForm'
 import { notFound } from 'next/navigation'
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {
@@ -28,7 +29,7 @@ export default async function UniversityPage({ params }: { params: { slug: strin
     notFound()
   }
 
-  const approvedReviews = (uni.reviews ?? []).filter((r: any) => r.status === 'APPROVED')
+  const approvedReviews = (uni.reviews ?? []).filter((r: any) => r.status !== 'REJECTED')
   const avgRating = approvedReviews.length
     ? (approvedReviews.reduce((acc: number, r: any) => acc + r.rating, 0) / approvedReviews.length).toFixed(1)
     : null
@@ -159,19 +160,19 @@ export default async function UniversityPage({ params }: { params: { slug: strin
             </div>
 
             {/* Reviews */}
-            {approvedReviews.length > 0 && (
-              <div className="bg-white border rounded-2xl p-6">
-                <div className="flex items-center gap-3 mb-5">
-                  <h2 className="text-lg font-semibold text-gray-900">Avaliações de alunos</h2>
-                  {avgRating && (
-                    <div className="flex items-center gap-1">
-                      <span className="text-yellow-400 text-xl">★</span>
-                      <span className="text-lg font-bold">{avgRating}</span>
-                      <span className="text-gray-400 text-sm">/ 5</span>
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-5">
+            <div className="bg-white border rounded-2xl p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <h2 className="text-lg font-semibold text-gray-900">Avaliações de alunos</h2>
+                {avgRating && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-yellow-400 text-xl">★</span>
+                    <span className="text-lg font-bold">{avgRating}</span>
+                    <span className="text-gray-400 text-sm">/ 5</span>
+                  </div>
+                )}
+              </div>
+              {approvedReviews.length > 0 ? (
+                <div className="space-y-5 mb-6">
                   {approvedReviews.slice(0, 5).map((review: any) => (
                     <div key={review.id} className="border-b pb-5 last:border-0 last:pb-0">
                       <div className="flex items-center gap-2 mb-1">
@@ -195,8 +196,14 @@ export default async function UniversityPage({ params }: { params: { slug: strin
                     </div>
                   ))}
                 </div>
+              ) : (
+                <p className="text-gray-400 text-sm mb-6">Nenhuma avaliação ainda. Seja o primeiro!</p>
+              )}
+              <div className="border-t pt-5">
+                <h3 className="text-base font-semibold text-gray-900 mb-4">Deixe sua avaliação</h3>
+                <ReviewForm universitySlug={uni.slug} />
               </div>
-            )}
+            </div>
           </div>
 
           {/* Sidebar */}

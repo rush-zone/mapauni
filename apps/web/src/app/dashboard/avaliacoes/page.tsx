@@ -8,15 +8,20 @@ export default async function AvaliacoesPage() {
   const token = (session as any)?.accessToken
 
   let reviews: any[] = []
+  let plan = 'PREMIUM'
   try {
-    const res = await api.get<{ data: any[] }>('/reviews', { Authorization: `Bearer ${token}` })
-    reviews = res.data
+    const [reviewsRes, me] = await Promise.all([
+      api.get<{ data: any[] }>('/reviews', { Authorization: `Bearer ${token}` }),
+      api.get<any>('/auth/me', { Authorization: `Bearer ${token}` }),
+    ])
+    reviews = reviewsRes.data
+    plan = me?.university?.plan ?? 'PREMIUM'
   } catch {}
 
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Avaliações</h1>
-      <ReviewModerationList reviews={reviews} token={token} />
+      <ReviewModerationList reviews={reviews} token={token} plan={plan} />
     </div>
   )
 }

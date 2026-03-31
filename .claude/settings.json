@@ -1,10 +1,11 @@
 {
   "permissions": {
+    "allow": [
+      "Bash(ls \"d:/sistemas_2026/mapauni/apps/web/src/app/\\(public\\)/cursos/[slug]/\")",
+      "Bash(DATABASE_URL=\"postgresql://postgres:VvZaxydUuXjMwVkkrMkWjDXSpcFcWrKe@hopper.proxy.rlwy.net:52015/railway\" npx prisma migrate deploy)"
+    ],
     "additionalDirectories": [
       "d:\\sistemas_2026\\mapauni\\apps\\web\\src\\app\\(public)\\cursos\\[slug]"
-    ],
-    "allow": [
-      "Bash(ls \"d:/sistemas_2026/mapauni/apps/web/src/app/\\(public\\)/cursos/[slug]/\")"
     ]
   }
 }

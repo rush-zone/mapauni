@@ -17,13 +17,14 @@ export async function reviewRoutes(app: FastifyInstance) {
     const university = await prisma.university.findUnique({ where: { slug } })
     if (!university) return reply.status(404).send({ error: 'University not found' })
 
+    // Show all non-rejected reviews (APPROVED = visible, PENDING = auto-visible for unpaid, REJECTED = hidden by paid plan)
     const reviews = await prisma.review.findMany({
-      where: { universityId: university.id, status: 'APPROVED' },
+      where: { universityId: university.id, status: { not: 'REJECTED' } },
       orderBy: { createdAt: 'desc' },
     })
 
     const agg = await prisma.review.aggregate({
-      where: { universityId: university.id, status: 'APPROVED' },
+      where: { universityId: university.id, status: { not: 'REJECTED' } },
       _avg: { rating: true },
       _count: { rating: true },
     })
@@ -44,8 +45,9 @@ export async function reviewRoutes(app: FastifyInstance) {
     const university = await prisma.university.findUnique({ where: { slug } })
     if (!university) return reply.status(404).send({ error: 'University not found' })
 
+    // Reviews go live immediately as APPROVED — paid plans can reject (hide) later
     const review = await prisma.review.create({
-      data: { ...body, universityId: university.id, status: 'PENDING' },
+      data: { ...body, universityId: university.id, status: 'APPROVED' },
     })
     return reply.status(201).send(review)
   })
