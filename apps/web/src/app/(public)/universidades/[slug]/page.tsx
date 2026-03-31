@@ -65,43 +65,45 @@ export default async function UniversityPage({ params }: { params: { slug: strin
         <span className="text-gray-400 ml-2">/ {uni.name}</span>
       </nav>
 
-      {/* Cover */}
-      <div className="relative h-52 bg-blue-600 overflow-hidden">
+      {/* Cover + Profile header */}
+      <div className="bg-white border-b">
         {uni.coverUrl && (
-          <img src={uni.coverUrl} alt="Capa" className="w-full h-full object-cover" />
-        )}
-      </div>
-
-      <div className="max-w-6xl mx-auto px-6">
-        {/* Profile header */}
-        <div className="flex items-end gap-5 -mt-12 mb-8">
-          <div className="w-24 h-24 rounded-2xl border-4 border-white bg-white shadow-lg flex items-center justify-center overflow-hidden shrink-0">
-            {uni.logoUrl
-              ? <img src={uni.logoUrl} alt={uni.name} className="w-full h-full object-contain p-2" />
-              : <span className="text-3xl font-bold text-blue-600">{uni.name[0]}</span>
-            }
+          <div className="h-48 overflow-hidden">
+            <img src={uni.coverUrl} alt="Capa" className="w-full h-full object-cover" />
           </div>
-          <div className="pb-2 min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900 leading-tight">{uni.name}</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              {TYPE_LABEL[uni.type]}
-              {uni.category ? ` • ${uni.category}` : ''}
-              {` • ${uni.city}, ${uni.state}`}
-              {uni.foundedYear ? ` • Fundada em ${uni.foundedYear}` : ''}
-            </p>
-            <div className="flex gap-2 mt-2 flex-wrap">
-              {uni.igc && <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">IGC {uni.igc}</span>}
-              {uni.ci && <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full">CI {uni.ci}</span>}
-              {avgRating && (
-                <span className="text-xs bg-yellow-50 text-yellow-700 px-2 py-1 rounded-full">
-                  ★ {avgRating} ({approvedReviews.length} avaliações)
-                </span>
-              )}
+        )}
+        <div className="max-w-6xl mx-auto px-6 py-6">
+          <div className="flex items-center gap-5">
+            <div className="w-20 h-20 rounded-2xl border-2 border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden shrink-0">
+              {uni.logoUrl
+                ? <img src={uni.logoUrl} alt={uni.name} className="w-full h-full object-contain p-2" />
+                : <span className="text-2xl font-bold text-blue-600">{uni.name[0]}</span>
+              }
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-gray-900 leading-tight">{uni.name}</h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                {TYPE_LABEL[uni.type]}
+                {uni.category ? ` • ${uni.category}` : ''}
+                {` • ${uni.city}, ${uni.state}`}
+                {uni.foundedYear ? ` • Fundada em ${uni.foundedYear}` : ''}
+              </p>
+              <div className="flex gap-2 mt-2 flex-wrap">
+                {uni.igc && <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">IGC {uni.igc}</span>}
+                {uni.ci && <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full">CI {uni.ci}</span>}
+                {avgRating && (
+                  <span className="text-xs bg-yellow-50 text-yellow-700 px-2 py-1 rounded-full">
+                    ★ {avgRating} ({approvedReviews.length} avaliações)
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-16">
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 py-8 pb-16">
           {/* Main content */}
           <div className="lg:col-span-2 space-y-6">
 
