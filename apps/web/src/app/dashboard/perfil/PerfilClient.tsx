@@ -145,7 +145,7 @@ export function PerfilClient({ university, token }: PerfilClientProps) {
             className="w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 resize-none font-mono"
           />
           <p className="text-xs text-gray-400 mt-1">
-            {form.galleryImages.split('\n').filter(u => u.trim().startsWith('http')).length}/6 fotos
+            {form.galleryImages.split('\n').filter((u: string) => u.trim().startsWith('http')).length}/6 fotos
           </p>
         </div>
       </section>
