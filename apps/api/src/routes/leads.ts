@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../lib/prisma'
 import { authenticate } from '../middlewares/auth.middleware'
+import { sendNewLeadEmail } from '../lib/email'
 
 const createLeadSchema = z.object({
   name: z.string().min(2),
@@ -25,6 +26,24 @@ export async function leadRoutes(app: FastifyInstance) {
     if (!university) return reply.status(404).send({ error: 'University not found' })
 
     const lead = await prisma.lead.create({ data: body })
+
+    // Send email notification (non-blocking)
+    if (university.email) {
+      const course = body.courseId
+        ? await prisma.course.findUnique({ where: { id: body.courseId }, select: { name: true } })
+        : null
+
+      sendNewLeadEmail({
+        to: university.email,
+        universityName: university.name,
+        studentName: body.name,
+        studentEmail: body.email,
+        studentPhone: body.phone,
+        courseName: course?.name,
+        message: body.message,
+      }).catch(() => {}) // silently ignore email errors
+    }
+
     return reply.status(201).send(lead)
   })
 
