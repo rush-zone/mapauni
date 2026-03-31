@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { api } from '@/lib/api'
 import { LeadForm } from '@/components/lead/LeadForm'
+import { UniversityGallery } from './UniversityGallery'
 import { notFound } from 'next/navigation'
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {
@@ -8,11 +9,15 @@ export async function generateMetadata({ params }: { params: { slug: string } })
     const uni: any = await api.get(`/universities/${params.slug}`)
     return {
       title: `${uni.name} — MapaUni`,
-      description: uni.description || `Conheça os cursos da ${uni.name}`,
+      description: uni.description || `Conheça os cursos da ${uni.name} em ${uni.city}, ${uni.state}.`,
     }
   } catch {
     return { title: 'Universidade — MapaUni' }
   }
+}
+
+const TYPE_LABEL: Record<string, string> = {
+  FEDERAL: 'Federal', ESTADUAL: 'Estadual', MUNICIPAL: 'Municipal', PRIVADA: 'Privada',
 }
 
 export default async function UniversityPage({ params }: { params: { slug: string } }) {
@@ -23,107 +28,231 @@ export default async function UniversityPage({ params }: { params: { slug: strin
     notFound()
   }
 
+  const approvedReviews = (uni.reviews ?? []).filter((r: any) => r.status === 'APPROVED')
+  const avgRating = approvedReviews.length
+    ? (approvedReviews.reduce((acc: number, r: any) => acc + r.rating, 0) / approvedReviews.length).toFixed(1)
+    : null
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'CollegeOrUniversity',
     name: uni.name,
     url: uni.website,
+    foundingDate: uni.foundedYear,
     address: {
       '@type': 'PostalAddress',
       addressLocality: uni.city,
       addressRegion: uni.state,
       addressCountry: 'BR',
     },
-    ...(uni._count?.reviews > 0 ? {
+    ...(avgRating && {
       aggregateRating: {
         '@type': 'AggregateRating',
-        ratingValue: '4.0',
-        reviewCount: uni._count.reviews,
+        ratingValue: avgRating,
+        reviewCount: approvedReviews.length,
       },
-    } : {}),
+    }),
   }
 
   return (
     <main className="min-h-screen bg-gray-50">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+
+      {/* Nav */}
       <nav className="flex items-center px-6 py-4 border-b bg-white shadow-sm">
         <Link href="/" className="text-xl font-bold text-blue-600 mr-4">MapaUni</Link>
-        <span className="text-gray-400 mr-2">/ <Link href="/universidades" className="hover:text-blue-600">Universidades</Link></span>
-        <span className="text-gray-400">/ {uni.name}</span>
+        <span className="text-gray-400">/ <Link href="/busca" className="hover:text-blue-600">Busca</Link></span>
+        <span className="text-gray-400 ml-2">/ {uni.name}</span>
       </nav>
 
-      <div className="max-w-6xl mx-auto px-6 py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white border rounded-xl p-6">
-              <div className="flex items-start gap-4">
-                <div className="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 font-bold text-2xl">
-                  {uni.name.charAt(0)}
-                </div>
-                <div className="flex-1">
-                  <h1 className="text-2xl font-bold text-gray-900">{uni.name}</h1>
-                  <p className="text-gray-500">{uni.city}, {uni.state} &bull; {uni.type}</p>
-                  <div className="flex gap-2 mt-2">
-                    {uni.igc && <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">IGC {uni.igc}</span>}
-                    {uni.ci && <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full">CI {uni.ci}</span>}
-                  </div>
-                </div>
-              </div>
-              {uni.description && <p className="text-gray-600 mt-4">{uni.description}</p>}
-              <div className="mt-4 flex gap-4 text-sm">
-                {uni.website && <a href={uni.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Site oficial</a>}
-                {uni.email && <a href={`mailto:${uni.email}`} className="text-blue-600 hover:underline">{uni.email}</a>}
-              </div>
-            </div>
+      {/* Cover */}
+      <div className="relative h-52 bg-gradient-to-r from-blue-700 to-blue-500 overflow-hidden">
+        {uni.coverUrl && (
+          <img src={uni.coverUrl} alt="Capa" className="w-full h-full object-cover" />
+        )}
+      </div>
 
-            <div className="bg-white border rounded-xl p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Cursos oferecidos</h2>
-              {uni.courses?.length === 0 ? (
-                <p className="text-gray-400">Nenhum curso cadastrado.</p>
+      <div className="max-w-6xl mx-auto px-6">
+        {/* Profile header */}
+        <div className="flex items-end gap-5 -mt-12 mb-8">
+          <div className="w-24 h-24 rounded-2xl border-4 border-white bg-white shadow-lg flex items-center justify-center overflow-hidden shrink-0">
+            {uni.logoUrl
+              ? <img src={uni.logoUrl} alt={uni.name} className="w-full h-full object-contain p-2" />
+              : <span className="text-3xl font-bold text-blue-600">{uni.name[0]}</span>
+            }
+          </div>
+          <div className="pb-2 min-w-0">
+            <h1 className="text-2xl font-bold text-gray-900 leading-tight">{uni.name}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {TYPE_LABEL[uni.type]}
+              {uni.category ? ` • ${uni.category}` : ''}
+              {` • ${uni.city}, ${uni.state}`}
+              {uni.foundedYear ? ` • Fundada em ${uni.foundedYear}` : ''}
+            </p>
+            <div className="flex gap-2 mt-2 flex-wrap">
+              {uni.igc && <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">IGC {uni.igc}</span>}
+              {uni.ci && <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full">CI {uni.ci}</span>}
+              {avgRating && (
+                <span className="text-xs bg-yellow-50 text-yellow-700 px-2 py-1 rounded-full">
+                  ★ {avgRating} ({approvedReviews.length} avaliações)
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-16">
+          {/* Main content */}
+          <div className="lg:col-span-2 space-y-6">
+
+            {/* Gallery */}
+            {uni.galleryImages?.length > 0 && (
+              <div className="bg-white border rounded-2xl p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Galeria</h2>
+                <UniversityGallery images={uni.galleryImages} />
+              </div>
+            )}
+
+            {/* About */}
+            {uni.description && (
+              <div className="bg-white border rounded-2xl p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-3">Sobre a instituição</h2>
+                <p className="text-gray-600 leading-relaxed whitespace-pre-line">{uni.description}</p>
+              </div>
+            )}
+
+            {/* Courses */}
+            <div className="bg-white border rounded-2xl p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Cursos oferecidos {uni.courses?.length > 0 && <span className="text-gray-400 font-normal text-base">({uni.courses.length})</span>}
+              </h2>
+              {!uni.courses?.length ? (
+                <p className="text-gray-400 text-sm">Nenhum curso cadastrado.</p>
               ) : (
                 <div className="space-y-3">
-                  {uni.courses?.map((course: any) => (
+                  {uni.courses.map((course: any) => (
                     <Link
                       key={course.id}
                       href={`/cursos/${course.slug}`}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:border-blue-400 transition"
+                      className="flex items-center justify-between p-4 border rounded-xl hover:border-blue-400 hover:bg-blue-50 transition group"
                     >
                       <div>
-                        <p className="font-medium text-gray-900">{course.name}</p>
-                        <p className="text-sm text-gray-500">{course.modality} &bull; {course.degree} &bull; {course.duration} semestres</p>
+                        <p className="font-medium text-gray-900 group-hover:text-blue-700">{course.name}</p>
+                        <p className="text-sm text-gray-500 mt-0.5">
+                          {course.modality} • {course.degree} • {course.duration} semestres
+                          {course.enade ? ` • ENADE ${course.enade}` : ''}
+                        </p>
                       </div>
                       {course.priceMonthly ? (
-                        <p className="text-sm font-semibold text-gray-700">R$ {course.priceMonthly.toLocaleString('pt-BR')}/mês</p>
+                        <p className="text-sm font-semibold text-gray-800 shrink-0 ml-4">
+                          R$ {course.priceMonthly.toLocaleString('pt-BR')}/mês
+                        </p>
                       ) : (
-                        <p className="text-sm font-medium text-green-600">Gratuito</p>
+                        <p className="text-sm font-medium text-green-600 shrink-0 ml-4">Gratuito</p>
                       )}
                     </Link>
                   ))}
                 </div>
               )}
             </div>
+
+            {/* Reviews */}
+            {approvedReviews.length > 0 && (
+              <div className="bg-white border rounded-2xl p-6">
+                <div className="flex items-center gap-3 mb-5">
+                  <h2 className="text-lg font-semibold text-gray-900">Avaliações de alunos</h2>
+                  {avgRating && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-yellow-400 text-xl">★</span>
+                      <span className="text-lg font-bold">{avgRating}</span>
+                      <span className="text-gray-400 text-sm">/ 5</span>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-5">
+                  {approvedReviews.slice(0, 5).map((review: any) => (
+                    <div key={review.id} className="border-b pb-5 last:border-0 last:pb-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-yellow-400 text-sm">
+                          {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
+                        </span>
+                        <span className="text-sm font-medium text-gray-800">{review.authorName}</span>
+                        {review.courseStudied && (
+                          <span className="text-xs text-gray-400">• {review.courseStudied}</span>
+                        )}
+                      </div>
+                      {review.comment && (
+                        <p className="text-gray-600 text-sm leading-relaxed">{review.comment}</p>
+                      )}
+                      {review.replyText && (
+                        <div className="mt-3 ml-4 pl-3 border-l-2 border-blue-200 bg-blue-50 rounded-r-lg py-2 pr-3">
+                          <p className="text-xs text-blue-600 font-semibold mb-1">Resposta da instituição</p>
+                          <p className="text-sm text-gray-700">{review.replyText}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          <div>
-            <div className="bg-white border rounded-xl p-6 sticky top-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Solicitar informações</h2>
-              <LeadForm universityId={uni.id} universityName={uni.name} />
+          {/* Sidebar */}
+          <div className="space-y-5">
+            {/* Contact */}
+            <div className="bg-white border rounded-2xl p-6 space-y-3">
+              <h2 className="text-base font-semibold text-gray-900">Contato</h2>
               {uni.phone && (
-                <div className="mt-4 pt-4 border-t">
-                  <p className="text-sm text-gray-500">Telefone</p>
-                  <p className="font-medium text-gray-900">{uni.phone}</p>
-                </div>
+                <a href={`tel:${uni.phone}`} className="flex items-center gap-2 text-sm text-gray-700 hover:text-blue-600 transition">
+                  <span>📞</span> {uni.phone}
+                </a>
               )}
               {uni.whatsapp && (
                 <a
-                  href={`https://wa.me/${uni.whatsapp.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition"
+                  href={`https://wa.me/55${uni.whatsapp.replace(/\D/g, '')}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full py-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-xl transition"
                 >
-                  WhatsApp
+                  💬 Chamar no WhatsApp
                 </a>
               )}
+              {uni.website && (
+                <a href={uni.website} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm text-blue-600 hover:underline">
+                  🌐 Site oficial
+                </a>
+              )}
+              {uni.address && (
+                <p className="flex items-start gap-2 text-sm text-gray-600">
+                  <span className="shrink-0">📍</span> {uni.address}
+                </p>
+              )}
+              {(uni.instagram || uni.facebook || uni.linkedin || uni.youtube) && (
+                <div className="flex gap-3 pt-2 flex-wrap">
+                  {uni.instagram && (
+                    <a href={`https://instagram.com/${uni.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-pink-500 hover:underline">Instagram</a>
+                  )}
+                  {uni.facebook && (
+                    <a href={uni.facebook} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-blue-700 hover:underline">Facebook</a>
+                  )}
+                  {uni.linkedin && (
+                    <a href={uni.linkedin} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-blue-500 hover:underline">LinkedIn</a>
+                  )}
+                  {uni.youtube && (
+                    <a href={uni.youtube} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-red-500 hover:underline">YouTube</a>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Lead form */}
+            <div className="bg-white border rounded-2xl p-6">
+              <h2 className="text-base font-semibold text-gray-900 mb-4">Solicitar informações</h2>
+              <LeadForm universityId={uni.id} universityName={uni.name} />
             </div>
           </div>
         </div>

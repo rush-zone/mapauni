@@ -15,6 +15,10 @@ const updateUniversitySchema = z.object({
   linkedin: z.string().optional(),
   youtube: z.string().optional(),
   tiktok: z.string().optional(),
+  logoUrl: z.string().url().optional(),
+  coverUrl: z.string().url().optional(),
+  foundedYear: z.number().int().min(1800).max(2100).optional(),
+  galleryImages: z.array(z.string().url()).max(6).optional(),
 }).partial()
 
 export async function universityRoutes(app: FastifyInstance) {
