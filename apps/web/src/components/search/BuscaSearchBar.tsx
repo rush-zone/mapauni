@@ -2,32 +2,64 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-export function BuscaSearchBar({ initialQuery }: { initialQuery: string }) {
-  const [query, setQuery] = useState(initialQuery)
+const TABS = [
+  { key: 'q', label: 'Cursos', placeholder: 'Ex: Medicina, Engenharia, Direito...' },
+  { key: 'q', label: 'Universidade', placeholder: 'Ex: USP, PUC, UFMG...' },
+  { key: 'city', label: 'Cidade', placeholder: 'Ex: São Paulo, Campinas, Rio de Janeiro...' },
+]
+
+interface BuscaSearchBarProps {
+  initialQuery: string
+  initialCity?: string
+}
+
+export function BuscaSearchBar({ initialQuery, initialCity }: BuscaSearchBarProps) {
+  const hasCity = !!initialCity && !initialQuery
+  const [activeTab, setActiveTab] = useState(hasCity ? 2 : 0)
+  const [query, setQuery] = useState(hasCity ? initialCity : initialQuery)
   const router = useRouter()
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
+    if (!query.trim()) { router.push('/busca'); return }
     const params = new URLSearchParams()
-    if (query.trim()) params.set('q', query.trim())
+    params.set(TABS[activeTab].key, query.trim())
     router.push(`/busca?${params.toString()}`)
   }
 
   return (
-    <form onSubmit={handleSearch} className="flex gap-2">
-      <input
-        type="text"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Buscar curso, universidade ou cidade..."
-        className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 bg-white"
-      />
-      <button
-        type="submit"
-        className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition"
-      >
-        Buscar
-      </button>
-    </form>
+    <div>
+      <div className="flex border-b border-gray-200 mb-0">
+        {TABS.map((tab, i) => (
+          <button
+            key={tab.label}
+            type="button"
+            onClick={() => { setActiveTab(i); setQuery('') }}
+            className={`px-5 py-2.5 text-sm font-medium transition border-b-2 -mb-px ${
+              activeTab === i
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      <form onSubmit={handleSearch} className="flex gap-2 mt-3">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={TABS[activeTab].placeholder}
+          className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 bg-white"
+        />
+        <button
+          type="submit"
+          className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition"
+        >
+          Buscar
+        </button>
+      </form>
+    </div>
   )
 }

@@ -15,7 +15,7 @@ export default function SearchPage({ searchParams }: SearchPageProps) {
         <span className="text-gray-400">/ Busca</span>
       </nav>
       <div className="max-w-7xl mx-auto px-6 py-6">
-        <BuscaSearchBar initialQuery={searchParams.q ?? ''} />
+        <BuscaSearchBar initialQuery={searchParams.q ?? ''} initialCity={searchParams.city} />
         <div className="flex gap-8 mt-6">
           <aside className="w-64 shrink-0">
             <SearchFilters params={searchParams} />
