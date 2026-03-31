@@ -39,8 +39,8 @@ export function PerfilClient({ university, token }: PerfilClientProps) {
 
     const galleryImages = form.galleryImages
       .split('\n')
-      .map(u => u.trim())
-      .filter(u => u.startsWith('http'))
+      .map((u: string) => u.trim())
+      .filter((u: string) => u.startsWith('http'))
       .slice(0, 6)
 
     const payload: any = {
