@@ -22,19 +22,20 @@ function slugify(text: string): string {
 }
 
 function decodeCSV(buf: Buffer): string {
-  // Detecta mojibake: arquivo UTF-8 relido como Windows-1252 e resalvo como UTF-8
-  // Sintoma: "Ã‡" no lugar de "Ç", "Ãƒ" no lugar de "Ã", etc.
-  const asUtf8 = buf.toString('utf8')
-  if (asUtf8.includes('Ã') || asUtf8.includes('â€')) {
-    try {
-      // Recodifica os chars Unicode de volta para bytes Latin-1, depois lê como UTF-8
-      const reencoded = iconv.encode(asUtf8, 'latin1')
-      return reencoded.toString('utf8')
-    } catch {
-      return asUtf8
-    }
+  return buf.toString('utf8')
+}
+
+/** Corrige mojibake causado pelo PowerShell (UTF-8 lido como Windows-1252 e regravado como UTF-8) */
+function fixMojibake(text: string): string {
+  if (!text) return text
+  try {
+    const bytes = iconv.encode(text, 'latin1')
+    const fixed = iconv.decode(bytes, 'utf8')
+    // Só retorna se o resultado parece melhor (sem caracteres de controle extras)
+    return fixed.includes('\uFFFD') ? text : fixed
+  } catch {
+    return text
   }
-  return asUtf8
 }
 
 function normalizeKey(key: string): string {
@@ -129,7 +130,7 @@ async function batchUpsertUniversities(records: Record<string, string>[]) {
     for (const row of batch) {
       try {
         const mecCode = col(row, 'CODIGO_DA_IES')
-        const nome = col(row, 'NOME_DA_IES')
+        const nome = fixMojibake(col(row, 'NOME_DA_IES'))
         const uf = col(row, 'UF')
         if (!mecCode || !nome || !uf) { result.skipped++; continue }
 
@@ -137,7 +138,7 @@ async function batchUpsertUniversities(records: Record<string, string>[]) {
         const isActive = situacao === 'ativa' || situacao === 'em atividade'
         const categoria = col(row, 'CATEGORIA_DA_IES')
         const orgAcademica = col(row, 'ORGANIZACAO_ACADEMICA')
-        const municipio = col(row, 'MUNICIPIO')
+        const municipio = fixMojibake(col(row, 'MUNICIPIO'))
 
         let category: string | null = null
         if (categoria.toLowerCase().includes('privada')) {
@@ -222,10 +223,10 @@ async function batchImportCourses(records: Record<string, string>[]) {
       try {
         const codigoIES = col(row, 'CODIGO_IES') || col(row, 'CODIGO_DA_IES') || col(row, 'CO_IES')
         const codigoCurso = col(row, 'CODIGO_CURSO') || col(row, 'CODIGO_DO_CURSO') || col(row, 'CO_CURSO')
-        const nomeCurso = col(row, 'NOME_CURSO') || col(row, 'NOME_DO_CURSO') || col(row, 'NO_CURSO')
+        const nomeCurso = fixMojibake(col(row, 'NOME_CURSO') || col(row, 'NOME_DO_CURSO') || col(row, 'NO_CURSO'))
         const grauRaw = col(row, 'GRAU') || col(row, 'GRAU_ACADEMICO') || col(row, 'DS_GRAU_ACADEMICO')
         const modalidadeRaw = col(row, 'MODALIDADE') || col(row, 'MODALIDADE_DE_ENSINO') || col(row, 'DS_MODALIDADE')
-        const municipio = col(row, 'MUNICIPIO') || col(row, 'NO_MUNICIPIO')
+        const municipio = fixMojibake(col(row, 'MUNICIPIO') || col(row, 'NO_MUNICIPIO'))
         const uf = col(row, 'UF') || col(row, 'SG_UF')
         const situacao = col(row, 'SITUACAO') || col(row, 'SITUACAO_DO_CURSO') || col(row, 'DS_SITUACAO_CURSO')
         const vagasStr = col(row, 'VAGAS_AUTORIZADAS') || col(row, 'QT_VAGAS_AUTORIZADAS') || ''
