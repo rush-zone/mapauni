@@ -207,11 +207,11 @@ async function batchImportCourses(records: Record<string, string>[]) {
 
     for (const row of batch) {
       try {
-        const codigoIES = col(row, 'CODIGO_DA_IES') || col(row, 'CO_IES')
-        const codigoCurso = col(row, 'CODIGO_DO_CURSO') || col(row, 'CO_CURSO')
-        const nomeCurso = col(row, 'NOME_DO_CURSO') || col(row, 'NO_CURSO')
+        const codigoIES = col(row, 'CODIGO_IES') || col(row, 'CODIGO_DA_IES') || col(row, 'CO_IES')
+        const codigoCurso = col(row, 'CODIGO_CURSO') || col(row, 'CODIGO_DO_CURSO') || col(row, 'CO_CURSO')
+        const nomeCurso = col(row, 'NOME_CURSO') || col(row, 'NOME_DO_CURSO') || col(row, 'NO_CURSO')
         const grauRaw = col(row, 'GRAU') || col(row, 'GRAU_ACADEMICO') || col(row, 'DS_GRAU_ACADEMICO')
-        const modalidadeRaw = col(row, 'MODALIDADE_DE_ENSINO') || col(row, 'MODALIDADE') || col(row, 'DS_MODALIDADE')
+        const modalidadeRaw = col(row, 'MODALIDADE') || col(row, 'MODALIDADE_DE_ENSINO') || col(row, 'DS_MODALIDADE')
         const municipio = col(row, 'MUNICIPIO') || col(row, 'NO_MUNICIPIO')
         const uf = col(row, 'UF') || col(row, 'SG_UF')
         const situacao = col(row, 'SITUACAO') || col(row, 'SITUACAO_DO_CURSO') || col(row, 'DS_SITUACAO_CURSO')
@@ -221,7 +221,11 @@ async function batchImportCourses(records: Record<string, string>[]) {
         if (!codigoIES || !nomeCurso) { result.skipped++; continue }
 
         const universityId = uniMap.get(codigoIES)
-        if (!universityId) { result.skipped++; continue }
+        if (!universityId) {
+          if (result.errors.length < 3) result.errors.push(`IES não encontrada: CODIGO_IES=${codigoIES}, NOME_CURSO=${nomeCurso}`)
+          result.skipped++
+          continue
+        }
 
         const grau = mapGrau(grauRaw)
         const modalidade = mapModalidade(modalidadeRaw)
