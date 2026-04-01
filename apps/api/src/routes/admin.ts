@@ -19,12 +19,8 @@ function slugify(text: string): string {
     .replace(/-+/g, '-')
 }
 
-/**
- * O CSV do MEC é gravado em ISO-8859-1 (latin1), mas recebido como Buffer.
- * Recodificamos aqui para corrigir mojibake.
- */
-function decodeLatin1(buf: Buffer): string {
-  return buf.toString('latin1')
+function decodeCSV(buf: Buffer): string {
+  return buf.toString('utf8')
 }
 
 /**
@@ -147,7 +143,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     for await (const chunk of file.file) {
       chunks.push(chunk as Buffer)
     }
-    const raw = decodeLatin1(Buffer.concat(chunks))
+    const raw = decodeCSV(Buffer.concat(chunks))
 
     // Resultados da importação
     const result = {
