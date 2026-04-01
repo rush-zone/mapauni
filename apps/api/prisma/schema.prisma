@@ -8,51 +8,46 @@ datasource db {
 }
 
 model University {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  name        String
-  sigla       String?
-  cnpj        String?  @unique
-  mecCode     String?  @unique
-  ibgeCode    String?
-  type        UniversityType
-  category    String?
-  academicOrg String?
-  isActive    Boolean  @default(true)
-  logoUrl     String?
-  coverUrl    String?
-  description String?
-  website     String?
-  phone       String?
-  whatsapp    String?
-  email       String?
-  plan        PlanType @default(PREMIUM)
-
-  address     String?
-  city        String
-  state       String
-  zipCode     String?
-  lat         Float?
-  lng         Float?
-
-  instagram   String?
-  facebook    String?
-  linkedin    String?
-  youtube     String?
-  tiktok      String?
-
-  igc         Float?
-  ci          Float?
-  foundedYear Int?
+  id            String           @id @default(cuid())
+  slug          String           @unique
+  name          String
+  cnpj          String?          @unique
+  mecCode       String?          @unique
+  type          UniversityType
+  category      String?
+  logoUrl       String?
+  coverUrl      String?
+  description   String?
+  website       String?
+  phone         String?
+  whatsapp      String?
+  email         String?
+  plan          PlanType         @default(PREMIUM)
+  address       String?
+  city          String
+  state         String
+  zipCode       String?
+  lat           Float?
+  lng           Float?
+  instagram     String?
+  facebook      String?
+  linkedin      String?
+  youtube       String?
+  tiktok        String?
+  igc           Float?
+  ci            Float?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  foundedYear   Int?
   galleryImages String[]
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  courses     Course[]
-  users       UniversityUser[]
-  leads       Lead[]
-  reviews     Review[]
+  sigla         String?
+  academicOrg   String?
+  ibgeCode      String?
+  isActive      Boolean          @default(true)
+  courses       Course[]
+  leads         Lead[]
+  reviews       Review[]
+  users         UniversityUser[]
 }
 
 model AdminUser {
@@ -70,98 +65,87 @@ model Review {
   status        ReviewStatus @default(PENDING)
   verifiedAt    DateTime?
   verifyMethod  String?
-
   universityId  String
-  university    University   @relation(fields: [universityId], references: [id])
-
   authorName    String
   authorEmail   String
   courseStudied String?
-
   replyText     String?
   repliedAt     DateTime?
-
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+  university    University   @relation(fields: [universityId], references: [id])
 }
 
 model Course {
-  id            String   @id @default(cuid())
-  slug          String   @unique
-  name          String
-  mecCode       String?
-  area          String
-  subArea       String?
-  degree        DegreeType
-  modality      ModalityType
-  shift         ShiftType[]
-  duration      Int
-  priceMonthly  Float?
-  enade         Float?
-  ccpValue      Float?
-  active        Boolean  @default(true)
-  description   String?
-
-  universityId  String
-  university    University @relation(fields: [universityId], references: [id])
-  offers        Offer[]
-  leads         Lead[]
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String       @id @default(cuid())
+  slug         String       @unique
+  name         String
+  mecCode      String?
+  area         String
+  subArea      String?
+  degree       DegreeType
+  modality     ModalityType
+  shift        ShiftType[]
+  duration     Int
+  priceMonthly Float?
+  enade        Float?
+  ccpValue     Float?
+  active       Boolean      @default(true)
+  description  String?
+  universityId String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  university   University   @relation(fields: [universityId], references: [id])
+  leads        Lead[]
+  offers       Offer[]
 }
 
 model Offer {
-  id            String   @id @default(cuid())
-  courseId      String
-  course        Course   @relation(fields: [courseId], references: [id])
-  semester      String
-  vacancies     Int
-  enrolled      Int      @default(0)
-  priceMonthly  Float?
-  prouni        Boolean  @default(false)
-  fies          Boolean  @default(false)
-  cutoffScore   Float?
-  enrollStart   DateTime?
-  enrollEnd     DateTime?
-  active        Boolean  @default(true)
-
-  createdAt     DateTime @default(now())
+  id           String    @id @default(cuid())
+  courseId     String
+  semester     String
+  vacancies    Int
+  enrolled     Int       @default(0)
+  priceMonthly Float?
+  prouni       Boolean   @default(false)
+  fies         Boolean   @default(false)
+  cutoffScore  Float?
+  enrollStart  DateTime?
+  enrollEnd    DateTime?
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  course       Course    @relation(fields: [courseId], references: [id])
 }
 
 model Lead {
-  id            String   @id @default(cuid())
-  name          String
-  email         String
-  phone         String
-  message       String?
-  source        String?
-  utmSource     String?
-  utmMedium     String?
-  utmCampaign   String?
-  status        LeadStatus @default(NEW)
-  openedAt      DateTime?
-
-  universityId  String
-  university    University @relation(fields: [universityId], references: [id])
-  courseId      String?
-  course        Course?    @relation(fields: [courseId], references: [id])
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String     @id @default(cuid())
+  name         String
+  email        String
+  phone        String
+  message      String?
+  source       String?
+  utmSource    String?
+  utmMedium    String?
+  utmCampaign  String?
+  status       LeadStatus @default(NEW)
+  openedAt     DateTime?
+  universityId String
+  courseId     String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  course       Course?    @relation(fields: [courseId], references: [id])
+  university   University @relation(fields: [universityId], references: [id])
 }
 
 model UniversityUser {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id           String     @id @default(cuid())
+  email        String     @unique
   name         String
   passwordHash String
-  role         UserRole @default(MANAGER)
-
+  role         UserRole   @default(MANAGER)
   universityId String
+  createdAt    DateTime   @default(now())
   university   University @relation(fields: [universityId], references: [id])
-
-  createdAt    DateTime @default(now())
 }
 
 enum UniversityType {
