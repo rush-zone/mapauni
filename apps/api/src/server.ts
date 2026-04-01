@@ -3,12 +3,14 @@ import cors from '@fastify/cors'
 import jwt from '@fastify/jwt'
 import cookie from '@fastify/cookie'
 import rateLimit from '@fastify/rate-limit'
+import multipart from '@fastify/multipart'
 import { authRoutes } from './routes/auth'
 import { universityRoutes } from './routes/universities'
 import { courseRoutes } from './routes/courses'
 import { leadRoutes } from './routes/leads'
 import { searchRoutes } from './routes/search'
 import { reviewRoutes } from './routes/reviews'
+import { adminRoutes } from './routes/admin'
 
 const server = Fastify({ logger: true })
 
@@ -30,12 +32,15 @@ async function bootstrap() {
     timeWindow: '1 minute',
   })
 
+  await server.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } }) // 50 MB
+
   await server.register(authRoutes, { prefix: '/api/v1/auth' })
   await server.register(universityRoutes, { prefix: '/api/v1/universities' })
   await server.register(courseRoutes, { prefix: '/api/v1/courses' })
   await server.register(leadRoutes, { prefix: '/api/v1/leads' })
   await server.register(searchRoutes, { prefix: '/api/v1/search' })
   await server.register(reviewRoutes, { prefix: '/api/v1' })
+  await server.register(adminRoutes, { prefix: '/api/v1/admin' })
 
   server.get('/health', async () => ({ status: 'ok' }))
 
