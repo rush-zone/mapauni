@@ -1,2 +1,2 @@
 [deploy]
-startCommand = "cd apps/api && npx prisma migrate deploy && node scripts/seed-admin.js && node dist/server.js"
+startCommand = "cd apps/api && npx prisma migrate deploy; node scripts/seed-admin.js; node dist/server.js"
