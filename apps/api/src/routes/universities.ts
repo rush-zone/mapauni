@@ -22,6 +22,44 @@ const updateUniversitySchema = z.object({
 }).partial()
 
 export async function universityRoutes(app: FastifyInstance) {
+  // ── GET /universities/search ─────────────────────────────────────────────
+  app.get('/search', async (request) => {
+    const { q, state, type, city, page = '1', limit = '20' } = request.query as any
+    const skip = (Number(page) - 1) * Math.min(Number(limit), 50)
+    const take = Math.min(Number(limit), 50)
+
+    const where: any = { isActive: true }
+    if (state) where.state = state.toUpperCase()
+    if (type) where.type = type.toUpperCase()
+    if (city) where.city = { contains: city, mode: 'insensitive' }
+    if (q) {
+      where.OR = [
+        { name: { contains: q, mode: 'insensitive' } },
+        { sigla: { contains: q, mode: 'insensitive' } },
+        { city: { contains: q, mode: 'insensitive' } },
+      ]
+    }
+
+    const [data, total] = await Promise.all([
+      prisma.university.findMany({
+        where,
+        skip,
+        take,
+        select: {
+          id: true, slug: true, name: true, sigla: true,
+          type: true, category: true, academicOrg: true,
+          city: true, state: true, logoUrl: true,
+          igc: true, plan: true,
+          _count: { select: { courses: true, reviews: { where: { status: 'APPROVED' } } } },
+        },
+        orderBy: [{ igc: 'desc' }, { name: 'asc' }],
+      }),
+      prisma.university.count({ where }),
+    ])
+
+    return { data, meta: { total, page: Number(page), limit: take } }
+  })
+
   app.get('/', async (request) => {
     const { page = '1', limit = '20', state, type } = request.query as any
     const skip = (Number(page) - 1) * Number(limit)

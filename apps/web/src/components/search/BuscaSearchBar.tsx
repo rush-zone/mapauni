@@ -3,27 +3,34 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 const TABS = [
-  { key: 'q', label: 'Cursos', placeholder: 'Ex: Medicina, Engenharia, Direito...' },
-  { key: 'q', label: 'Universidade', placeholder: 'Ex: USP, PUC, UFMG...' },
-  { key: 'city', label: 'Cidade', placeholder: 'Ex: São Paulo, Campinas, Rio de Janeiro...' },
+  { modo: 'cursos', label: 'Cursos', placeholder: 'Ex: Medicina, Engenharia, Direito...' },
+  { modo: 'universidades', label: 'Universidades', placeholder: 'Ex: USP, PUC, UFMG...' },
+  { modo: 'universidades', label: 'Cidade', placeholder: 'Ex: São Paulo, Campinas, Rio de Janeiro...', useCity: true },
 ]
 
-interface BuscaSearchBarProps {
+interface Props {
+  initialModo: string
   initialQuery: string
   initialCity?: string
 }
 
-export function BuscaSearchBar({ initialQuery, initialCity }: BuscaSearchBarProps) {
-  const hasCity = !!initialCity && !initialQuery
-  const [activeTab, setActiveTab] = useState(hasCity ? 2 : 0)
-  const [query, setQuery] = useState(hasCity ? initialCity : initialQuery)
+export function BuscaSearchBar({ initialModo, initialQuery, initialCity }: Props) {
+  const isCity = !!initialCity && !initialQuery
+  const getInitialTab = () => {
+    if (isCity) return 2
+    if (initialModo === 'universidades') return 1
+    return 0
+  }
+  const [activeTab, setActiveTab] = useState(getInitialTab)
+  const [query, setQuery] = useState(isCity ? initialCity : initialQuery)
   const router = useRouter()
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
-    if (!query.trim()) { router.push('/busca'); return }
+    const tab = TABS[activeTab]
     const params = new URLSearchParams()
-    params.set(TABS[activeTab].key, query.trim())
+    params.set('modo', tab.modo)
+    if (query.trim()) params.set(tab.useCity ? 'city' : 'q', query.trim())
     router.push(`/busca?${params.toString()}`)
   }
 
