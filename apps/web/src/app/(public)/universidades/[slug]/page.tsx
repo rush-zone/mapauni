@@ -183,7 +183,7 @@ export default async function UniversityPage({ params }: { params: { slug: strin
                       </div>
                       {course.priceMonthly
                         ? <p className="text-sm font-semibold text-gray-800 shrink-0 ml-4">R$ {course.priceMonthly.toLocaleString('pt-BR')}/mês</p>
-                        : <p className="text-sm font-medium text-green-600 shrink-0 ml-4">Gratuito</p>}
+                        : <p className="text-sm text-gray-400 shrink-0 ml-4">Consulte</p>}
                     </Link>
                   ))}
                 </div>
