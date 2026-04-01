@@ -12,7 +12,7 @@ import { searchRoutes } from './routes/search'
 import { reviewRoutes } from './routes/reviews'
 import { adminRoutes } from './routes/admin'
 
-const server = Fastify({ logger: true })
+const server = Fastify({ logger: true, bodyLimit: 500 * 1024 * 1024 })
 
 async function bootstrap() {
   await server.register(cors, {
@@ -32,7 +32,7 @@ async function bootstrap() {
     timeWindow: '1 minute',
   })
 
-  await server.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } }) // 50 MB
+  await server.register(multipart, { limits: { fileSize: 500 * 1024 * 1024 } }) // 500 MB
 
   await server.register(authRoutes, { prefix: '/api/v1/auth' })
   await server.register(universityRoutes, { prefix: '/api/v1/universities' })

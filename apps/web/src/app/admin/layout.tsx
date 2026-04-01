@@ -32,7 +32,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const links = [
     { href: '/admin', label: 'Dashboard' },
     { href: '/admin/universidades', label: 'Universidades' },
-    { href: '/admin/importar', label: 'Importar CSV' },
+    { href: '/admin/importar', label: 'Importar IES (CSV)' },
+    { href: '/admin/importar-cursos', label: 'Importar Cursos (CSV)' },
   ]
 
   return (
