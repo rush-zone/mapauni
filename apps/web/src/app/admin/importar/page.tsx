@@ -9,6 +9,7 @@ interface ImportResult {
   updated: number
   skipped: number
   errors: string[]
+  detectedColumns: string[]
 }
 
 export default function ImportarPage() {
@@ -172,6 +173,13 @@ export default function ImportarPage() {
 
           {result.errors.length === 0 && (
             <p className="text-sm text-green-600 font-medium">Importação concluída sem erros.</p>
+          )}
+
+          {result.detectedColumns?.length > 0 && (
+            <details className="mt-4">
+              <summary className="text-xs text-gray-400 cursor-pointer">Colunas detectadas no CSV ({result.detectedColumns.length})</summary>
+              <p className="text-xs text-gray-500 mt-1 font-mono break-all">{result.detectedColumns.join(' | ')}</p>
+            </details>
           )}
         </div>
       )}

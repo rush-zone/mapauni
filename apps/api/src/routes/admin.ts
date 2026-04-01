@@ -57,6 +57,29 @@ function mapUniversityType(
 }
 
 /**
+ * Remove acentos e normaliza chave de coluna do CSV para comparação.
+ * Ex: "CÓDIGO_DA_IES" → "CODIGO_DA_IES"
+ */
+function normalizeKey(key: string): string {
+  return key
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .trim()
+}
+
+/**
+ * Retorna valor do row independente de acento no nome da coluna.
+ */
+function col(row: Record<string, string>, key: string): string {
+  // tenta direto primeiro, depois normalizado
+  if (row[key] !== undefined) return (row[key] || '').trim()
+  const nk = normalizeKey(key)
+  const found = Object.keys(row).find((k) => normalizeKey(k) === nk)
+  return found ? (row[found] || '').trim() : ''
+}
+
+/**
  * Gera slug único: se já existir, incrementa sufixo numérico.
  */
 async function uniqueSlug(base: string): Promise<string> {
@@ -127,7 +150,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const raw = decodeLatin1(Buffer.concat(chunks))
 
     // Resultados da importação
-    const result = { created: 0, updated: 0, skipped: 0, errors: [] as string[] }
+    const result = {
+      created: 0, updated: 0, skipped: 0,
+      errors: [] as string[],
+      detectedColumns: [] as string[],
+    }
 
     const records = await new Promise<Record<string, string>[]>((resolve, reject) => {
       parse(raw, {
@@ -143,26 +170,31 @@ export async function adminRoutes(fastify: FastifyInstance) {
       })
     })
 
+    // Captura colunas detectadas para debug
+    if (records.length > 0) {
+      result.detectedColumns = Object.keys(records[0])
+    }
+
     for (const row of records) {
       try {
-        const situacao = (row['SITUACAO_IES'] || '').trim().toLowerCase()
+        const situacao = col(row, 'SITUACAO_IES').toLowerCase()
         const isActive = situacao === 'ativa' || situacao === 'em atividade'
 
-        const mecCode = (row['CODIGO_DA_IES'] || '').trim()
-        const nome = (row['NOME_DA_IES'] || '').trim()
-        const sigla = (row['SIGLA'] || '').trim() || null
-        const categoria = (row['CATEGORIA_DA_IES'] || '').trim()
-        const orgAcademica = (row['ORGANIZACAO_ACADEMICA'] || '').trim()
-        const ibgeCode = (row['CODIGO_MUNICIPIO_IBGE'] || '').trim() || null
-        const municipio = (row['MUNICIPIO'] || '').trim()
-        const uf = (row['UF'] || '').trim()
+        const mecCode = col(row, 'CODIGO_DA_IES')
+        const nome = col(row, 'NOME_DA_IES')
+        const sigla = col(row, 'SIGLA') || null
+        const categoria = col(row, 'CATEGORIA_DA_IES')
+        const orgAcademica = col(row, 'ORGANIZACAO_ACADEMICA')
+        const ibgeCode = col(row, 'CODIGO_MUNICIPIO_IBGE') || null
+        const municipio = col(row, 'MUNICIPIO')
+        const uf = col(row, 'UF')
 
         // Subcategoria para privadas
         let category: string | null = null
         if (categoria.toLowerCase().includes('privada')) {
-          if ((row['COMUNITARIA'] || '').trim().toLowerCase() === 'sim') category = 'Comunitária'
-          else if ((row['CONFESSIONAL'] || '').trim().toLowerCase() === 'sim') category = 'Confessional'
-          else if ((row['FILANTROPICA'] || '').trim().toLowerCase() === 'sim') category = 'Filantrópica'
+          if (col(row, 'COMUNITARIA').toLowerCase() === 'sim') category = 'Comunitária'
+          else if (col(row, 'CONFESSIONAL').toLowerCase() === 'sim') category = 'Confessional'
+          else if (col(row, 'FILANTROPICA').toLowerCase() === 'sim') category = 'Filantrópica'
           else category = 'Privada'
         }
 
@@ -221,7 +253,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return reply.send({
       message: 'Importação concluída',
       total: records.length,
-      ...result,
+      created: result.created,
+      updated: result.updated,
+      skipped: result.skipped,
+      errors: result.errors,
+      detectedColumns: result.detectedColumns,
     })
   })
 
