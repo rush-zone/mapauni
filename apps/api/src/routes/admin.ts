@@ -232,7 +232,11 @@ async function batchImportCourses(records: Record<string, string>[]) {
         const vagasStr = col(row, 'VAGAS_AUTORIZADAS') || col(row, 'QT_VAGAS_AUTORIZADAS') || ''
         const cpcStr = col(row, 'CPC') || col(row, 'CONCEITO_CURSO') || col(row, 'CPC_CONTINUO') || ''
 
-        if (!codigoIES || !nomeCurso) { result.skipped++; continue }
+        if (!codigoIES || !nomeCurso) {
+          if (result.errors.length < 3) result.errors.push(`Campo vazio: CODIGO_IES="${codigoIES}" NOME_CURSO="${nomeCurso}" | colunas: ${Object.keys(row).slice(0,5).join('|')}`)
+          result.skipped++
+          continue
+        }
 
         const universityId = uniMap.get(codigoIES)
         if (!universityId) {
