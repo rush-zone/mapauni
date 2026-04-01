@@ -159,7 +159,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const records = await new Promise<Record<string, string>[]>((resolve, reject) => {
       parse(raw, {
         columns: true,
-        delimiter: ';',
+        delimiter: ',',
         skip_empty_lines: true,
         trim: true,
         relax_quotes: true,
