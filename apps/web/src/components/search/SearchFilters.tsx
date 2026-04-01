@@ -11,6 +11,14 @@ const STATES = [
   ['SE','Sergipe'],['TO','Tocantins'],
 ]
 
+const ORG_ACADEMICA = [
+  'Universidade',
+  'Centro Universitário',
+  'Faculdade',
+  'Instituto Federal de Educação, Ciência e Tecnologia',
+  'Centro Federal de Educação Tecnológica',
+]
+
 interface Props {
   params: Record<string, string | undefined>
   modo: 'cursos' | 'universidades'
@@ -60,6 +68,37 @@ export function SearchFilters({ params, modo }: Props) {
           <option value="PRIVADA">Privada</option>
         </select>
       </div>
+
+      {modo === 'universidades' && (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Organização Acadêmica</label>
+            <select
+              value={params.orgAcademica || ''}
+              onChange={(e) => updateFilter('orgAcademica', e.target.value)}
+              className="w-full border rounded-lg px-3 py-2 text-sm"
+            >
+              <option value="">Todas</option>
+              {ORG_ACADEMICA.map((org) => (
+                <option key={org} value={org}>{org}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="comCursos"
+              checked={params.comCursos === 'true'}
+              onChange={(e) => updateFilter('comCursos', e.target.checked ? 'true' : '')}
+              className="w-4 h-4 rounded border-gray-300 text-blue-600"
+            />
+            <label htmlFor="comCursos" className="text-sm text-gray-700 cursor-pointer">
+              Apenas com cursos cadastrados
+            </label>
+          </div>
+        </>
+      )}
 
       {modo === 'cursos' && (
         <>

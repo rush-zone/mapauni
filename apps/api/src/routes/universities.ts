@@ -24,7 +24,7 @@ const updateUniversitySchema = z.object({
 export async function universityRoutes(app: FastifyInstance) {
   // ── GET /universities/search ─────────────────────────────────────────────
   app.get('/search', async (request) => {
-    const { q, state, type, city, page = '1', limit = '20' } = request.query as any
+    const { q, state, type, city, orgAcademica, comCursos, page = '1', limit = '20' } = request.query as any
     const skip = (Number(page) - 1) * Math.min(Number(limit), 50)
     const take = Math.min(Number(limit), 50)
 
@@ -32,6 +32,8 @@ export async function universityRoutes(app: FastifyInstance) {
     if (state) where.state = state.toUpperCase()
     if (type) where.type = type.toUpperCase()
     if (city) where.city = { contains: city, mode: 'insensitive' }
+    if (orgAcademica) where.academicOrg = { contains: orgAcademica, mode: 'insensitive' }
+    if (comCursos === 'true') where.courses = { some: { active: true } }
     if (q) {
       where.OR = [
         { name: { contains: q, mode: 'insensitive' } },
@@ -88,6 +90,16 @@ export async function universityRoutes(app: FastifyInstance) {
       where: { slug },
       include: {
         courses: { where: { active: true }, include: { offers: { where: { active: true } } } },
+        acervoAcademico: true,
+        atosRegulatorios: { orderBy: { dataPublicacao: 'desc' } },
+        processosEmec: { orderBy: { dataAutuacao: 'desc' } },
+        ocorrenciasEmec: { orderBy: { dataOcorrencia: 'desc' } },
+        cursosAutorizados: { orderBy: [{ grau: 'asc' }, { nome: 'asc' }] },
+        reviews: {
+          where: { status: 'APPROVED' },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        },
         _count: { select: { reviews: { where: { status: 'APPROVED' } } } },
       },
     })

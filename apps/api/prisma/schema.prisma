@@ -44,10 +44,15 @@ model University {
   academicOrg   String?
   ibgeCode      String?
   isActive      Boolean          @default(true)
-  courses       Course[]
-  leads         Lead[]
-  reviews       Review[]
-  users         UniversityUser[]
+  courses              Course[]
+  leads                Lead[]
+  reviews              Review[]
+  users                UniversityUser[]
+  acervoAcademico      AcervoAcademico?
+  atosRegulatorios     AtoRegulatorio[]
+  processosEmec        ProcessoEmec[]
+  ocorrenciasEmec      OcorrenciaEmec[]
+  cursosAutorizados    CursoAutorizadoEmec[]
 }
 
 model AdminUser {
@@ -56,6 +61,98 @@ model AdminUser {
   name         String
   passwordHash String
   createdAt    DateTime @default(now())
+}
+
+// ── e-MEC scraped data ────────────────────────────────────────────────────────
+
+model AcervoAcademico {
+  id                    String      @id @default(cuid())
+  universityId          String      @unique
+  university            University  @relation(fields: [universityId], references: [id])
+
+  // Responsável pelo acervo
+  instituicaoResponsavel String?
+  endereco               String?
+  municipio              String?
+  uf                     String?
+  email                  String?
+  telefone               String?
+  responsavelLegal       String?
+
+  // Acervo digital
+  tipoAcervo            String?   // "Digital", "Físico", "Híbrido"
+  diplomaDigital        Boolean?
+  urlDiplomaDigital     String?
+  urlHistoricoDigital   String?
+  registroDiploma       String?   // "Próprio", "Terceirizado"
+
+  emecSyncedAt          DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model AtoRegulatorio {
+  id             String     @id @default(cuid())
+  universityId   String
+  university     University @relation(fields: [universityId], references: [id])
+
+  tipo           String     // "Credenciamento", "Recredenciamento", "Autorização"
+  numero         String?
+  dataPublicacao DateTime?
+  situacao       String?
+  arquivo        String?    // URL do DOU/PDF se disponível
+
+  emecSyncedAt   DateTime?
+  createdAt      DateTime   @default(now())
+}
+
+model ProcessoEmec {
+  id             String     @id @default(cuid())
+  universityId   String
+  university     University @relation(fields: [universityId], references: [id])
+
+  numero         String
+  tipo           String?
+  situacao       String?
+  dataAutuacao   DateTime?
+  dataDecisao    DateTime?
+  resultado      String?
+
+  emecSyncedAt   DateTime?
+  createdAt      DateTime   @default(now())
+}
+
+model OcorrenciaEmec {
+  id             String     @id @default(cuid())
+  universityId   String
+  university     University @relation(fields: [universityId], references: [id])
+
+  tipo           String?
+  descricao      String?
+  dataOcorrencia DateTime?
+  situacao       String?
+
+  emecSyncedAt   DateTime?
+  createdAt      DateTime   @default(now())
+}
+
+model CursoAutorizadoEmec {
+  id             String     @id @default(cuid())
+  universityId   String
+  university     University @relation(fields: [universityId], references: [id])
+
+  codigoEmec     String?
+  nome           String
+  grau           String?    // "Bacharelado", "Licenciatura", "Tecnológico", "Especialização"
+  modalidade     String?    // "Presencial", "EaD"
+  municipio      String?
+  uf             String?
+  situacao       String?    // "Em Atividade", "Extinto"
+  conceito       Float?     // CPC/ENADE
+  vagas          Int?
+
+  emecSyncedAt   DateTime?
+  createdAt      DateTime   @default(now())
 }
 
 model Review {
