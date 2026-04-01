@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs'
 import { parse } from 'csv-parse'
 import { Readable } from 'stream'
 import { prisma } from '../lib/prisma'
+import iconv from 'iconv-lite'
 import { authenticateAdmin } from '../middlewares/adminAuth.middleware'
 import { UniversityType, ModalityType, DegreeType } from '@prisma/client'
 
@@ -21,7 +22,19 @@ function slugify(text: string): string {
 }
 
 function decodeCSV(buf: Buffer): string {
-  return buf.toString('utf8')
+  // Detecta mojibake: arquivo UTF-8 relido como Windows-1252 e resalvo como UTF-8
+  // Sintoma: "Ã‡" no lugar de "Ç", "Ãƒ" no lugar de "Ã", etc.
+  const asUtf8 = buf.toString('utf8')
+  if (asUtf8.includes('Ã') || asUtf8.includes('â€')) {
+    try {
+      // Recodifica os chars Unicode de volta para bytes Latin-1, depois lê como UTF-8
+      const reencoded = iconv.encode(asUtf8, 'latin1')
+      return reencoded.toString('utf8')
+    } catch {
+      return asUtf8
+    }
+  }
+  return asUtf8
 }
 
 function normalizeKey(key: string): string {
