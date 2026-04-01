@@ -1,5 +1,0 @@
-[phases.build]
-cmds = ["pnpm build"]
-
-[start]
-cmd = "npx prisma migrate deploy && node dist/server.js"
