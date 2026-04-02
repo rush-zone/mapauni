@@ -13,44 +13,96 @@ interface ImportResult {
   detectedColumns: string[]
 }
 
+interface FileStatus {
+  file: File
+  status: 'pending' | 'uploading' | 'done' | 'error'
+  result?: ImportResult
+  error?: string
+}
+
 export default function ImportarCursosPage() {
   const fileRef = useRef<HTMLInputElement>(null)
-  const [file, setFile] = useState<File | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<ImportResult | null>(null)
-  const [error, setError] = useState('')
+  const [files, setFiles] = useState<FileStatus[]>([])
+  const [running, setRunning] = useState(false)
+  const [currentIndex, setCurrentIndex] = useState<number | null>(null)
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setFile(e.target.files?.[0] || null)
-    setResult(null)
-    setError('')
+    const selected = Array.from(e.target.files || [])
+    setFiles(selected.map((f) => ({ file: f, status: 'pending' })))
+    if (fileRef.current) fileRef.current.value = ''
   }
 
+  const totals = files.reduce(
+    (acc, f) => {
+      if (f.result) {
+        acc.total += f.result.total
+        acc.created += f.result.created
+        acc.updated += f.result.updated
+        acc.skipped += f.result.skipped
+      }
+      return acc
+    },
+    { total: 0, created: 0, updated: 0, skipped: 0 },
+  )
+
+  const allErrors = files.flatMap((f) => f.result?.errors ?? [])
+  const doneCount = files.filter((f) => f.status === 'done').length
+  const errorCount = files.filter((f) => f.status === 'error').length
+
   async function handleImport() {
-    if (!file) return
-    setLoading(true)
-    setError('')
-    setResult(null)
+    if (files.length === 0) return
+    setRunning(true)
 
-    try {
-      const token = localStorage.getItem('admin_token')
-      const form = new FormData()
-      form.append('file', file)
+    const token = localStorage.getItem('admin_token')
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/import/courses`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
-      })
+    for (let i = 0; i < files.length; i++) {
+      const entry = files[i]
+      if (entry.status === 'done') continue
 
-      const data = await res.json()
-      if (!res.ok) { setError(data.message || 'Erro na importação'); return }
-      setResult(data)
-    } catch {
-      setError('Erro ao conectar com o servidor')
-    } finally {
-      setLoading(false)
+      setCurrentIndex(i)
+      setFiles((prev) => prev.map((f, idx) => (idx === i ? { ...f, status: 'uploading' } : f)))
+
+      try {
+        const form = new FormData()
+        form.append('file', entry.file)
+
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/import/courses`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        })
+
+        const data = await res.json()
+
+        if (!res.ok) {
+          setFiles((prev) =>
+            prev.map((f, idx) =>
+              idx === i ? { ...f, status: 'error', error: data.message || 'Erro na importação' } : f,
+            ),
+          )
+        } else {
+          setFiles((prev) =>
+            prev.map((f, idx) => (idx === i ? { ...f, status: 'done', result: data } : f)),
+          )
+        }
+      } catch {
+        setFiles((prev) =>
+          prev.map((f, idx) =>
+            idx === i ? { ...f, status: 'error', error: 'Erro ao conectar com o servidor' } : f,
+          ),
+        )
+      }
     }
+
+    setCurrentIndex(null)
+    setRunning(false)
+  }
+
+  const statusIcon = (s: FileStatus['status']) => {
+    if (s === 'pending') return <span className="text-gray-400">⏳</span>
+    if (s === 'uploading') return <span className="inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+    if (s === 'done') return <span className="text-green-500">✓</span>
+    return <span className="text-red-500">✗</span>
   }
 
   return (
@@ -58,113 +110,123 @@ export default function ImportarCursosPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Importar Cursos e-MEC</h1>
         <p className="text-gray-500 text-sm mt-1">
-          Importe o CSV de cursos de graduação do e-MEC. Os cursos serão adicionados ao catálogo da plataforma
-          e vinculados automaticamente às IES pelo código e-MEC.
+          Selecione um ou mais arquivos CSV. Eles serão processados em sequência automaticamente.
         </p>
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-sm text-blue-800">
-        <p className="font-semibold mb-1">Como obter o arquivo</p>
+        <p className="font-semibold mb-1">Como obter os arquivos</p>
         <ol className="list-decimal list-inside space-y-1 text-blue-700">
           <li>Acesse <strong>dados.gov.br</strong> e busque por <strong>"Cursos de Graduação e-MEC"</strong></li>
-          <li>Baixe o arquivo CSV mais recente (~200MB)</li>
+          <li>Baixe o CSV mais recente e divida em partes se necessário</li>
           <li>Certifique-se de importar as IES primeiro</li>
         </ol>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-        <h2 className="font-semibold text-gray-900 mb-4">Selecionar arquivo</h2>
+        <h2 className="font-semibold text-gray-900 mb-4">Selecionar arquivos</h2>
         <div
-          onClick={() => fileRef.current?.click()}
-          className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
-            file ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+          onClick={() => !running && fileRef.current?.click()}
+          className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
+            running
+              ? 'opacity-50 cursor-not-allowed border-gray-200'
+              : 'cursor-pointer border-gray-300 hover:border-gray-400 hover:bg-gray-50'
           }`}
         >
-          <input ref={fileRef} type="file" accept=".csv" onChange={handleFileChange} className="hidden" />
-          {file ? (
+          <input ref={fileRef} type="file" accept=".csv" multiple onChange={handleFileChange} className="hidden" />
+          {files.length > 0 ? (
             <div>
-              <p className="font-medium text-blue-700">{file.name}</p>
-              <p className="text-sm text-blue-500 mt-1">{(file.size / 1024 / 1024).toFixed(2)} MB — clique para trocar</p>
+              <p className="font-medium text-blue-700">{files.length} arquivo(s) selecionado(s)</p>
+              <p className="text-sm text-blue-500 mt-1">
+                {(files.reduce((a, f) => a + f.file.size, 0) / 1024 / 1024).toFixed(1)} MB total — clique para trocar
+              </p>
             </div>
           ) : (
             <div>
-              <p className="text-gray-500">Arraste ou clique para selecionar o CSV</p>
-              <p className="text-xs text-gray-400 mt-1">Arquivo grande (~200MB) — o processo pode levar vários minutos</p>
+              <p className="text-gray-500">Arraste ou clique para selecionar os CSVs</p>
+              <p className="text-xs text-gray-400 mt-1">Múltiplos arquivos permitidos</p>
             </div>
           )}
         </div>
-
-        <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
-          <strong>Atenção:</strong> Linhas com colunas incorretas são ignoradas automaticamente.
-          O sistema cria <strong>CursoAutorizadoEmec</strong> (dado regulatório) +{' '}
-          <strong>Course</strong> (catálogo da plataforma) para cada linha válida.
-        </div>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 mb-4">{error}</div>
+      {files.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+          <h2 className="font-semibold text-gray-900 mb-3 text-sm">Arquivos ({files.length})</h2>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {files.map((f, i) => (
+              <div key={i} className="flex items-center gap-3 text-sm py-1.5 border-b border-gray-100 last:border-0">
+                <div className="w-5 flex justify-center flex-shrink-0">{statusIcon(f.status)}</div>
+                <span className="flex-1 truncate text-gray-700">{f.file.name}</span>
+                <span className="text-gray-400 text-xs flex-shrink-0">{(f.file.size / 1024 / 1024).toFixed(1)} MB</span>
+                {f.result && (
+                  <span className="text-xs text-green-600 flex-shrink-0">
+                    +{f.result.created.toLocaleString('pt-BR')} criados
+                  </span>
+                )}
+                {f.error && <span className="text-xs text-red-500 flex-shrink-0">{f.error}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       <button
         onClick={handleImport}
-        disabled={!file || loading}
+        disabled={files.length === 0 || running}
         className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg py-3 text-sm transition-colors mb-6"
       >
-        {loading ? 'Importando... aguarde (pode levar vários minutos)' : 'Iniciar importação de cursos'}
+        {running
+          ? `Importando arquivo ${(currentIndex ?? 0) + 1} de ${files.length}...`
+          : `Importar ${files.length > 0 ? files.length + ' arquivo(s)' : ''}`}
       </button>
 
-      {loading && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
+      {running && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 text-center mb-6">
           <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
-          <p className="text-blue-700 font-medium">Processando cursos...</p>
-          <p className="text-blue-500 text-sm mt-1">Não feche esta janela. Arquivos grandes podem levar 5–15 minutos.</p>
+          <p className="text-blue-700 font-medium">
+            Processando {currentIndex !== null ? files[currentIndex]?.file.name : ''}...
+          </p>
+          <p className="text-blue-500 text-sm mt-1">
+            {doneCount} de {files.length} concluídos
+          </p>
         </div>
       )}
 
-      {result && (
+      {doneCount > 0 && !running && (
         <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">Resultado da importação</h2>
+          <h2 className="font-semibold text-gray-900 mb-4">
+            Resultado final
+            {errorCount > 0 && <span className="ml-2 text-sm text-red-500">({errorCount} arquivo(s) com erro)</span>}
+          </h2>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
             {[
-              { label: 'Total lidos', value: result.total, color: 'text-gray-900' },
-              { label: 'Criados', value: result.created, color: 'text-green-600' },
-              { label: 'Atualizados', value: result.updated, color: 'text-blue-600' },
-              { label: 'Ignorados', value: result.skipped, color: 'text-amber-600' },
+              { label: 'Total lidos', value: totals.total, color: 'text-gray-900' },
+              { label: 'Criados', value: totals.created, color: 'text-green-600' },
+              { label: 'Atualizados', value: totals.updated, color: 'text-blue-600' },
+              { label: 'Ignorados', value: totals.skipped, color: 'text-amber-600' },
             ].map((item) => (
               <div key={item.label} className="text-center">
-                <p className={`text-2xl font-bold ${item.color}`}>{item.value?.toLocaleString('pt-BR')}</p>
+                <p className={`text-2xl font-bold ${item.color}`}>{item.value.toLocaleString('pt-BR')}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{item.label}</p>
               </div>
             ))}
           </div>
 
-          {result.parseErrors > 0 && (
-            <p className="text-sm text-amber-600 mb-3">{result.parseErrors} linha(s) com formato inválido ignoradas pelo parser.</p>
-          )}
-
-          {result.errors.length > 0 && (
-            <div className="mb-4">
-              <p className="text-sm font-medium text-red-700 mb-2">{result.errors.length} erro(s):</p>
+          {allErrors.length > 0 && (
+            <div>
+              <p className="text-sm font-medium text-red-700 mb-2">{allErrors.length} erro(s):</p>
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 max-h-48 overflow-y-auto">
-                {result.errors.map((e, i) => (
+                {allErrors.map((e, i) => (
                   <p key={i} className="text-xs text-red-700 font-mono leading-5">{e}</p>
                 ))}
               </div>
             </div>
           )}
 
-          {result.errors.length === 0 && (
-            <p className="text-sm text-green-600 font-medium">Importação concluída sem erros.</p>
-          )}
-
-          {result.detectedColumns?.length > 0 && (
-            <details className="mt-4">
-              <summary className="text-xs text-gray-400 cursor-pointer">
-                Colunas detectadas ({result.detectedColumns.length})
-              </summary>
-              <p className="text-xs text-gray-500 mt-1 font-mono break-all">{result.detectedColumns.join(' | ')}</p>
-            </details>
+          {allErrors.length === 0 && (
+            <p className="text-sm text-green-600 font-medium">Todas as importações concluídas sem erros.</p>
           )}
         </div>
       )}

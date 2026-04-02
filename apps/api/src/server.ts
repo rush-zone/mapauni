@@ -15,8 +15,20 @@ import { adminRoutes } from './routes/admin'
 const server = Fastify({ logger: true, bodyLimit: 500 * 1024 * 1024 })
 
 async function bootstrap() {
+  const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    'http://localhost:3000',
+    'https://mapauni-web.vercel.app',
+  ].filter(Boolean) as string[]
+
   await server.register(cors, {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: (origin, cb) => {
+      if (!origin || allowedOrigins.some((o) => origin.startsWith(o))) {
+        cb(null, true)
+      } else {
+        cb(new Error('Not allowed by CORS'), false)
+      }
+    },
     credentials: true,
   })
 

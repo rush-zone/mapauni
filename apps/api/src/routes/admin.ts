@@ -190,146 +190,113 @@ async function batchUpsertUniversities(records: Record<string, string>[]) {
   return result
 }
 
-/** Importa cursos do CSV e-MEC → CursoAutorizadoEmec + Course */
+/** Importa cursos do CSV e-MEC → CursoAutorizadoEmec + Course (bulk) */
 async function batchImportCourses(records: Record<string, string>[]) {
   const result = { created: 0, updated: 0, skipped: 0, errors: [] as string[] }
 
-  // Map mecCode → universityId
+  // Carrega tudo de uma vez
   const uniMap = new Map<string, string>()
   const allUnis = await prisma.university.findMany({ select: { id: true, mecCode: true } })
   for (const u of allUnis) {
     if (u.mecCode) uniMap.set(u.mecCode, u.id)
   }
 
-  // Map (universityId + codigoEmec) → CursoAutorizadoEmec.id já existente
   const existingCursos = await prisma.cursoAutorizadoEmec.findMany({ select: { id: true, universityId: true, codigoEmec: true } })
   const cursoMap = new Map<string, string>() // `${universityId}:${codigoEmec}` → id
   for (const c of existingCursos) {
     if (c.codigoEmec) cursoMap.set(`${c.universityId}:${c.codigoEmec}`, c.id)
   }
 
-  // Map (universityId + slug) → Course.id já existente
   const existingCourses = await prisma.course.findMany({ select: { id: true, universityId: true, mecCode: true } })
   const courseMap = new Map<string, string>() // `${universityId}:${mecCode}` → id
   for (const c of existingCourses) {
     if (c.mecCode) courseMap.set(`${c.universityId}:${c.mecCode}`, c.id)
   }
 
-  const BATCH = 200
-  for (let i = 0; i < records.length; i += BATCH) {
-    const batch = records.slice(i, i + BATCH)
+  // Passagem única: separa creates e updates
+  const cursosToCreate: any[] = []
+  const cursosToUpdate: { id: string; data: any }[] = []
+  const coursesToCreate: any[] = []
+  const coursesToUpdate: { id: string; data: any }[] = []
+  const seenKeys = new Set<string>() // evita duplicatas dentro do lote
 
-    for (const row of batch) {
-      try {
-        const codigoIES = col(row, 'CODIGO_IES') || col(row, 'CODIGO_DA_IES') || col(row, 'CO_IES')
-        const codigoCurso = col(row, 'CODIGO_CURSO') || col(row, 'CODIGO_DO_CURSO') || col(row, 'CO_CURSO')
-        const nomeCurso = fixMojibake(col(row, 'NOME_CURSO') || col(row, 'NOME_DO_CURSO') || col(row, 'NO_CURSO'))
-        const grauRaw = col(row, 'GRAU') || col(row, 'GRAU_ACADEMICO') || col(row, 'DS_GRAU_ACADEMICO')
-        const modalidadeRaw = col(row, 'MODALIDADE') || col(row, 'MODALIDADE_DE_ENSINO') || col(row, 'DS_MODALIDADE')
-        const municipio = fixMojibake(col(row, 'MUNICIPIO') || col(row, 'NO_MUNICIPIO'))
-        const uf = col(row, 'UF') || col(row, 'SG_UF')
-        const situacao = col(row, 'SITUACAO') || col(row, 'SITUACAO_DO_CURSO') || col(row, 'DS_SITUACAO_CURSO')
-        const vagasStr = col(row, 'VAGAS_AUTORIZADAS') || col(row, 'QT_VAGAS_AUTORIZADAS') || ''
-        const cpcStr = col(row, 'CPC') || col(row, 'CONCEITO_CURSO') || col(row, 'CPC_CONTINUO') || ''
+  for (const row of records) {
+    try {
+      const codigoIES = col(row, 'CODIGO_IES') || col(row, 'CODIGO_DA_IES') || col(row, 'CO_IES')
+      const codigoCurso = col(row, 'CODIGO_CURSO') || col(row, 'CODIGO_DO_CURSO') || col(row, 'CO_CURSO')
+      const nomeCurso = fixMojibake(col(row, 'NOME_CURSO') || col(row, 'NOME_DO_CURSO') || col(row, 'NO_CURSO'))
+      const grauRaw = col(row, 'GRAU') || col(row, 'GRAU_ACADEMICO') || col(row, 'DS_GRAU_ACADEMICO')
+      const modalidadeRaw = col(row, 'MODALIDADE') || col(row, 'MODALIDADE_DE_ENSINO') || col(row, 'DS_MODALIDADE')
+      const municipio = fixMojibake(col(row, 'MUNICIPIO') || col(row, 'NO_MUNICIPIO'))
+      const uf = col(row, 'UF') || col(row, 'SG_UF')
+      const situacao = col(row, 'SITUACAO') || col(row, 'SITUACAO_DO_CURSO') || col(row, 'DS_SITUACAO_CURSO')
+      const vagasStr = col(row, 'VAGAS_AUTORIZADAS') || col(row, 'QT_VAGAS_AUTORIZADAS') || ''
+      const cpcStr = col(row, 'CPC') || col(row, 'CONCEITO_CURSO') || col(row, 'CPC_CONTINUO') || ''
 
-        if (!codigoIES || !nomeCurso) {
-          if (result.errors.length < 3) result.errors.push(`Campo vazio: CODIGO_IES="${codigoIES}" NOME_CURSO="${nomeCurso}" | colunas: ${Object.keys(row).slice(0,5).join('|')}`)
-          result.skipped++
-          continue
-        }
-
-        const universityId = uniMap.get(codigoIES)
-        if (!universityId) {
-          if (result.errors.length < 3) result.errors.push(`IES não encontrada: CODIGO_IES=${codigoIES}, NOME_CURSO=${nomeCurso}`)
-          result.skipped++
-          continue
-        }
-
-        const grau = mapGrau(grauRaw)
-        const modalidade = mapModalidade(modalidadeRaw)
-        const vagas = vagasStr ? parseInt(vagasStr.replace(/\D/g, '')) || null : null
-        const conceito = cpcStr ? parseFloat(cpcStr.replace(',', '.')) || null : null
-        const isAtivo = !situacao || situacao.toLowerCase().includes('atividade') || situacao.toLowerCase() === 'ativo'
-
-        const cursoKey = `${universityId}:${codigoCurso}`
-        const courseKey = `${universityId}:${codigoCurso}`
-
-        // Upsert CursoAutorizadoEmec
-        if (cursoMap.has(cursoKey)) {
-          await prisma.cursoAutorizadoEmec.update({
-            where: { id: cursoMap.get(cursoKey)! },
-            data: { nome: nomeCurso, grau: grauRaw, modalidade: modalidadeRaw, municipio, uf, situacao, vagas, conceito, emecSyncedAt: new Date() },
-          })
-        } else {
-          const novo = await prisma.cursoAutorizadoEmec.create({
-            data: { universityId, codigoEmec: codigoCurso, nome: nomeCurso, grau: grauRaw, modalidade: modalidadeRaw, municipio, uf, situacao, vagas, conceito, emecSyncedAt: new Date() },
-          })
-          cursoMap.set(cursoKey, novo.id)
-        }
-
-        // Upsert Course (catálogo da plataforma)
-        const baseSlug = slugify(nomeCurso)
-        if (courseMap.has(courseKey)) {
-          await prisma.course.update({
-            where: { id: courseMap.get(courseKey)! },
-            data: {
-              name: nomeCurso,
-              degree: grau,
-              modality: modalidade,
-              area: grauRaw || 'Geral',
-              active: isAtivo,
-              enade: conceito,
-            },
-          })
-          result.updated++
-        } else {
-          // Garante slug único
-          const slug = `${baseSlug}-${codigoCurso || Math.random().toString(36).slice(2, 7)}`
-          try {
-            const novoCourse = await prisma.course.create({
-              data: {
-                universityId,
-                mecCode: codigoCurso || null,
-                name: nomeCurso,
-                slug,
-                degree: grau,
-                modality: modalidade,
-                shift: [],
-                area: grauRaw || 'Geral',
-                duration: 8,
-                active: isAtivo,
-                enade: conceito,
-              },
-            })
-            courseMap.set(courseKey, novoCourse.id)
-            result.created++
-          } catch {
-            // slug duplicado — tenta com sufixo aleatório
-            const slugAlt = `${baseSlug}-${Date.now()}`
-            const novoCourse = await prisma.course.create({
-              data: {
-                universityId,
-                mecCode: codigoCurso || null,
-                name: nomeCurso,
-                slug: slugAlt,
-                degree: grau,
-                modality: modalidade,
-                shift: [],
-                area: grauRaw || 'Geral',
-                duration: 8,
-                active: isAtivo,
-                enade: conceito,
-              },
-            })
-            courseMap.set(courseKey, novoCourse.id)
-            result.created++
-          }
-        }
-      } catch (err) {
-        result.errors.push(`[${col(row, 'CODIGO_DO_CURSO')}] ${err instanceof Error ? err.message : String(err)}`)
-        if (result.errors.length >= 50) result.errors.push('... erros truncados após 50')
+      if (!codigoIES || !nomeCurso) {
+        if (result.errors.length < 3)
+          result.errors.push(`Campo vazio: CODIGO_IES="${codigoIES}" NOME_CURSO="${nomeCurso}" | colunas: ${Object.keys(row).slice(0, 5).join('|')}`)
+        result.skipped++
+        continue
       }
+
+      const universityId = uniMap.get(codigoIES)
+      if (!universityId) {
+        if (result.errors.length < 3)
+          result.errors.push(`IES não encontrada: CODIGO_IES=${codigoIES}, NOME_CURSO=${nomeCurso}`)
+        result.skipped++
+        continue
+      }
+
+      const grau = mapGrau(grauRaw)
+      const modalidade = mapModalidade(modalidadeRaw)
+      const vagas = vagasStr ? parseInt(vagasStr.replace(/\D/g, '')) || null : null
+      const conceito = cpcStr ? parseFloat(cpcStr.replace(',', '.')) || null : null
+      const isAtivo = !situacao || situacao.toLowerCase().includes('atividade') || situacao.toLowerCase() === 'ativo'
+      const key = `${universityId}:${codigoCurso}`
+
+      if (seenKeys.has(key)) { result.skipped++; continue }
+      seenKeys.add(key)
+
+      const cursoData = { nome: nomeCurso, grau: grauRaw, modalidade: modalidadeRaw, municipio, uf, situacao, vagas, conceito, emecSyncedAt: new Date() }
+
+      if (cursoMap.has(key)) {
+        cursosToUpdate.push({ id: cursoMap.get(key)!, data: cursoData })
+      } else {
+        cursosToCreate.push({ universityId, codigoEmec: codigoCurso, ...cursoData })
+      }
+
+      const courseData = { name: nomeCurso, degree: grau, modality: modalidade, area: grauRaw || 'Geral', active: isAtivo, enade: conceito }
+
+      if (courseMap.has(key)) {
+        coursesToUpdate.push({ id: courseMap.get(key)!, data: courseData })
+        result.updated++
+      } else {
+        const slug = `${slugify(nomeCurso)}-${codigoCurso || Math.random().toString(36).slice(2, 7)}`
+        coursesToCreate.push({ universityId, mecCode: codigoCurso || null, slug, shift: [], duration: 8, ...courseData })
+        result.created++
+      }
+    } catch (err) {
+      result.errors.push(`[${col(row, 'CODIGO_DO_CURSO')}] ${err instanceof Error ? err.message : String(err)}`)
+      if (result.errors.length >= 50) { result.errors.push('... erros truncados após 50'); break }
     }
+  }
+
+  // Bulk creates em chunks de 1000
+  const CHUNK = 1000
+  for (let i = 0; i < cursosToCreate.length; i += CHUNK) {
+    await prisma.cursoAutorizadoEmec.createMany({ data: cursosToCreate.slice(i, i + CHUNK), skipDuplicates: true })
+  }
+  for (let i = 0; i < coursesToCreate.length; i += CHUNK) {
+    await prisma.course.createMany({ data: coursesToCreate.slice(i, i + CHUNK) as any[], skipDuplicates: true })
+  }
+
+  // Updates em paralelo, chunks de 100
+  for (let i = 0; i < cursosToUpdate.length; i += 100) {
+    await Promise.all(cursosToUpdate.slice(i, i + 100).map((u) => prisma.cursoAutorizadoEmec.update({ where: { id: u.id }, data: u.data })))
+  }
+  for (let i = 0; i < coursesToUpdate.length; i += 100) {
+    await Promise.all(coursesToUpdate.slice(i, i + 100).map((u) => prisma.course.update({ where: { id: u.id }, data: u.data })))
   }
 
   return result
