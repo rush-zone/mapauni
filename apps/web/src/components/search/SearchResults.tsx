@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { api } from '@/lib/api'
-import { ArrowRight, Search } from 'lucide-react'
+import { ArrowRight, Search, MapPin } from 'lucide-react'
 
 const LIMIT = 10
 
@@ -27,7 +27,7 @@ export async function SearchResults({ params }: SearchResultsProps) {
   query.set('page', String(page))
 
   let results: any = { data: [], meta: { total: 0 } }
-  let broadenedToState = false
+  let nearbyCities: { city: string; state: string; courseCount: number; distanceKm: number | null }[] = []
 
   try {
     results = await api.get(`/search?${query.toString()}`)
@@ -35,13 +35,13 @@ export async function SearchResults({ params }: SearchResultsProps) {
     return <div className="text-sm text-red-500 p-4">Erro ao carregar resultados.</div>
   }
 
-  // If city filter returned nothing, retry with state only
+  // If city returned nothing, fetch nearest cities with courses instead
   if (results.meta.total === 0 && params.city && params.state) {
     try {
-      const fallback = new URLSearchParams(query.toString())
-      fallback.delete('city')
-      const r = await api.get(`/search?${fallback.toString()}`) as any
-      if (r.meta.total > 0) { results = r; broadenedToState = true }
+      const nc = await api.get(
+        `/search/nearby-cities?city=${encodeURIComponent(params.city)}&state=${params.state}&limit=4`
+      ) as any
+      nearbyCities = nc.cities ?? []
     } catch {}
   }
 
@@ -56,23 +56,59 @@ export async function SearchResults({ params }: SearchResultsProps) {
 
   if (results.data.length === 0) {
     return (
-      <div className="text-center py-20">
-        <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
-          <Search size={18} className="text-slate-400" />
+      <div className="py-10">
+        <div className="text-center mb-8">
+          <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
+            <Search size={18} className="text-slate-400" />
+          </div>
+          <p className="text-sm font-medium text-slate-700">
+            Nenhum curso encontrado em <strong>{params.city}</strong>
+          </p>
+          <p className="text-xs text-slate-400 mt-1">Tente outros filtros ou veja cidades próximas</p>
         </div>
-        <p className="text-sm font-medium text-slate-700">Nenhum curso encontrado</p>
-        <p className="text-xs text-slate-400 mt-1">Tente outros filtros ou termos de busca</p>
+
+        {nearbyCities.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+              Cidades próximas com cursos
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {nearbyCities.map(nc => {
+                const p = new URLSearchParams()
+                p.set('city', nc.city)
+                p.set('state', nc.state)
+                if (params.q) p.set('q', params.q)
+                if (params.modality) p.set('modality', params.modality)
+                if (params.degree) p.set('degree', params.degree)
+                return (
+                  <Link key={nc.city} href={`/busca?${p.toString()}`}
+                    className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 hover:border-blue-200 hover:shadow-sm transition-all group"
+                    style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
+                      <MapPin size={13} className="text-blue-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 truncate group-hover:text-blue-700 transition-colors">
+                        {nc.city}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {nc.courseCount} curso{nc.courseCount !== 1 ? 's' : ''}
+                        {nc.distanceKm ? ` · ${nc.distanceKm} km` : ''}
+                      </p>
+                    </div>
+                    <ArrowRight size={13} className="text-slate-300 group-hover:text-blue-400 ml-auto flex-shrink-0 transition-colors" />
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
     )
   }
 
   return (
     <div>
-      {broadenedToState && params.city && (
-        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-700">
-          <span>Nenhum curso encontrado em <strong>{params.city}</strong> — mostrando cursos disponíveis no estado.</span>
-        </div>
-      )}
       <p className="text-xs text-slate-400 mb-4 font-medium">
         <span className="text-slate-700 font-semibold">{results.meta.total.toLocaleString('pt-BR')}</span>
         {' '}resultado{results.meta.total !== 1 ? 's' : ''} encontrado{results.meta.total !== 1 ? 's' : ''}

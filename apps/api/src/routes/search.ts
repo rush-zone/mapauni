@@ -244,4 +244,73 @@ export async function searchRoutes(app: FastifyInstance) {
 
     return { suggestions }
   })
+
+  // ── GET /search/nearby-cities?city=X&state=UF&limit=4 ────────────────────
+  app.get('/nearby-cities', async (request) => {
+    const { city, state, limit = '4' } = request.query as any
+    if (!city || !state) return { cities: [] }
+
+    const take = Math.min(Number(limit), 10)
+
+    // 1. Find average coordinates of the target city
+    const targetUnivs = await prisma.university.findMany({
+      where: { city: { contains: city, mode: 'insensitive' }, state, isActive: true,
+               lat: { not: null }, lng: { not: null } },
+      select: { lat: true, lng: true },
+    })
+
+    // 2. Get all OTHER cities in the state that have active courses
+    const rows = await (prisma.university.groupBy as any)({
+      by: ['city'],
+      where: {
+        state,
+        isActive: true,
+        NOT: { city: { contains: city, mode: 'insensitive' } },
+        courses: { some: { active: true } },
+      },
+      _avg: { lat: true, lng: true },
+      _count: { _all: true },
+      orderBy: { _count: { _all: 'desc' } },
+    })
+
+    // 3. If we have coordinates for the target city, sort by distance
+    if (targetUnivs.length > 0) {
+      const tLat = targetUnivs.reduce((s: number, u: any) => s + u.lat!, 0) / targetUnivs.length
+      const tLng = targetUnivs.reduce((s: number, u: any) => s + u.lng!, 0) / targetUnivs.length
+
+      const toRad = (d: number) => d * Math.PI / 180
+      const haversine = (lat2: number, lng2: number) => {
+        const R = 6371
+        const dLat = toRad(lat2 - tLat)
+        const dLng = toRad(lng2 - tLng)
+        const a = Math.sin(dLat / 2) ** 2 +
+          Math.cos(toRad(tLat)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+      }
+
+      const withDist = rows
+        .filter((r: any) => r._avg.lat && r._avg.lng)
+        .map((r: any) => ({
+          city: r.city,
+          state,
+          courseCount: r._count._all,
+          distanceKm: Math.round(haversine(r._avg.lat, r._avg.lng)),
+        }))
+        .sort((a: any, b: any) => a.distanceKm - b.distanceKm)
+        .slice(0, take)
+
+      // If we got distance-sorted results, return them
+      if (withDist.length > 0) return { cities: withDist }
+    }
+
+    // 4. Fallback: return cities with most courses in the state (no distance data)
+    return {
+      cities: rows.slice(0, take).map((r: any) => ({
+        city: r.city,
+        state,
+        courseCount: r._count._all,
+        distanceKm: null,
+      })),
+    }
+  })
 }
