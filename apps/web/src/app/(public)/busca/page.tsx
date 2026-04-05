@@ -1,12 +1,12 @@
 import { Suspense } from 'react'
-import { SearchResults } from '@/components/search/SearchResults'
-import { UniversitySearchResults } from '@/components/search/UniversitySearchResults'
+import Link from 'next/link'
+import { UniversityRichResults } from '@/components/search/UniversityRichResults'
+import { StateBrowser } from '@/components/search/StateBrowser'
 import { SearchFilters } from '@/components/search/SearchFilters'
-import { BuscaSearchBar } from '@/components/search/BuscaSearchBar'
+import { SmartSearchBar } from '@/components/search/SmartSearchBar'
 
 interface SearchPageProps {
   searchParams: {
-    modo?: string
     q?: string
     modality?: string
     shift?: string
@@ -15,40 +15,103 @@ interface SearchPageProps {
     area?: string
     city?: string
     state?: string
+    orgAcademica?: string
     page?: string
   }
 }
 
 export default function SearchPage({ searchParams }: SearchPageProps) {
-  const modo = searchParams.modo === 'universidades' ? 'universidades' : 'cursos'
+  const hasCity    = !!searchParams.city
+  const hasState   = !!searchParams.state
+  const hasQ       = !!searchParams.q
+  const hasCourse  = !!(searchParams.modality || searchParams.shift || searchParams.degree)
+
+  // State-only → show state browser (click city to drill down)
+  const showStateBrowser = hasState && !hasCity && !hasQ && !hasCourse
+
+  // Reconstruct navbar search bar initial value
+  const initialParts: string[] = []
+  if (searchParams.city)     initialParts.push(searchParams.city)
+  if (searchParams.q)        initialParts.push(searchParams.q)
+  if (searchParams.modality === 'EAD')       initialParts.push('EaD')
+  else if (searchParams.modality === 'PRESENCIAL') initialParts.push('Presencial')
+  else if (searchParams.modality === 'HIBRIDO')    initialParts.push('Híbrido')
+  const initialValue = initialParts.join(', ')
+
+  // Breadcrumb context
+  const crumbs: string[] = []
+  if (searchParams.city)  crumbs.push(searchParams.city)
+  if (searchParams.state && !searchParams.city) crumbs.push(searchParams.state)
+  if (searchParams.q)     crumbs.push(searchParams.q)
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <nav className="flex items-center px-6 py-4 border-b bg-white shadow-sm">
-        <a href="/" className="text-xl font-bold text-blue-600 mr-8">InfoUni</a>
-        <span className="text-gray-400">/ Busca</span>
+    <div className="min-h-screen bg-slate-50">
+
+      {/* Navbar */}
+      <nav className="bg-white/90 backdrop-blur-md border-b border-slate-100 sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center gap-6">
+          <Link href="/" className="text-sm font-bold text-slate-900 tracking-tight flex-shrink-0">InfoUni</Link>
+          <div className="flex-1 max-w-2xl">
+            <SmartSearchBar compact initialValue={initialValue} />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0 ml-auto">
+            <Link href="/login" className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
+              Entrar
+            </Link>
+            <Link href="/registro"
+              className="text-sm font-semibold px-4 py-1.5 rounded-lg text-white transition-colors"
+              style={{ background: '#0F172A' }}>
+              Para universidades
+            </Link>
+          </div>
+        </div>
       </nav>
-      <div className="max-w-7xl mx-auto px-6 py-6">
-        <BuscaSearchBar
-          initialModo={modo}
-          initialQuery={searchParams.q ?? ''}
-          initialCity={searchParams.city}
-        />
-        <div className="flex gap-8 mt-6">
-          <aside className="w-64 shrink-0">
-            <SearchFilters params={searchParams} modo={modo} />
-          </aside>
-          <div className="flex-1">
-            <Suspense fallback={<div className="text-gray-400 py-8 text-center">Carregando...</div>}>
-              {modo === 'universidades' ? (
-                <UniversitySearchResults params={searchParams} />
-              ) : (
-                <SearchResults params={searchParams} />
-              )}
+
+      {/* Breadcrumb */}
+      <div className="max-w-7xl mx-auto px-6 py-3">
+        <p className="text-xs text-slate-400">
+          <Link href="/" className="hover:text-slate-600 transition-colors">Início</Link>
+          {' / '}
+          {showStateBrowser
+            ? <span className="text-slate-500">Estados</span>
+            : <span className="text-slate-500">Universidades</span>
+          }
+          {crumbs.length > 0 && (
+            <span className="text-slate-500"> / {crumbs.join(' · ')}</span>
+          )}
+        </p>
+      </div>
+
+      {/* Body */}
+      <div className="max-w-7xl mx-auto px-6 pb-16">
+        <div className="flex gap-6">
+
+          {/* Sidebar filters — hidden on state browser view */}
+          {!showStateBrowser && (
+            <aside className="w-56 flex-shrink-0 hidden md:block">
+              <Suspense>
+                <SearchFilters params={searchParams} modo="universidades" />
+              </Suspense>
+            </aside>
+          )}
+
+          {/* Results */}
+          <div className="flex-1 min-w-0">
+            <Suspense fallback={
+              <div className="space-y-3">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="h-24 bg-white rounded-xl border border-slate-100 animate-pulse" />
+                ))}
+              </div>
+            }>
+              {showStateBrowser
+                ? <StateBrowser selectedState={searchParams.state} />
+                : <UniversityRichResults params={searchParams} />
+              }
             </Suspense>
           </div>
         </div>
       </div>
-    </main>
+    </div>
   )
 }
