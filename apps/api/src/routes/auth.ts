@@ -67,7 +67,7 @@ export async function authRoutes(app: FastifyInstance) {
 
     const token = app.jwt.sign(
       { sub: result.user.id, universityId: result.user.universityId, role: result.user.role },
-      { expiresIn: '15m' }
+      { expiresIn: '7d' }
     )
     const refreshToken = app.jwt.sign({ sub: result.user.id }, { expiresIn: '7d' })
     reply.setCookie('refresh_token', refreshToken, { httpOnly: true, path: '/', maxAge: 60 * 60 * 24 * 7 })
@@ -88,7 +88,7 @@ export async function authRoutes(app: FastifyInstance) {
 
     const token = app.jwt.sign(
       { sub: user.id, universityId: user.universityId, role: user.role },
-      { expiresIn: '15m' }
+      { expiresIn: '7d' }
     )
     const refreshToken = app.jwt.sign({ sub: user.id }, { expiresIn: '7d' })
 
@@ -108,6 +108,23 @@ export async function authRoutes(app: FastifyInstance) {
       include: { university: true },
     })
     return user
+  })
+
+  app.post('/refresh', async (request, reply) => {
+    const refreshToken = request.cookies?.refresh_token
+    if (!refreshToken) return reply.status(401).send({ error: 'No refresh token' })
+    try {
+      const payload = app.jwt.verify(refreshToken) as { sub: string }
+      const user = await prisma.universityUser.findUnique({ where: { id: payload.sub } })
+      if (!user) return reply.status(401).send({ error: 'User not found' })
+      const token = app.jwt.sign(
+        { sub: user.id, universityId: user.universityId, role: user.role },
+        { expiresIn: '7d' }
+      )
+      return reply.send({ token })
+    } catch {
+      return reply.status(401).send({ error: 'Invalid refresh token' })
+    }
   })
 
   app.post('/logout', async (request, reply) => {

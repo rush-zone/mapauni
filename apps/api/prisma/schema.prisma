@@ -53,6 +53,7 @@ model University {
   processosEmec        ProcessoEmec[]
   ocorrenciasEmec      OcorrenciaEmec[]
   cursosAutorizados    CursoAutorizadoEmec[]
+  discountRules        DiscountRule[]
 }
 
 model AdminUser {
@@ -61,6 +62,17 @@ model AdminUser {
   name         String
   passwordHash String
   createdAt    DateTime @default(now())
+}
+
+model ImportLog {
+  id         String   @id @default(cuid())
+  type       String   // "universities" | "courses"
+  fileName   String?
+  created    Int      @default(0)
+  updated    Int      @default(0)
+  skipped    Int      @default(0)
+  total      Int      @default(0)
+  createdAt  DateTime @default(now())
 }
 
 // ── e-MEC scraped data ────────────────────────────────────────────────────────
@@ -192,9 +204,10 @@ model Course {
   universityId String
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
-  university   University   @relation(fields: [universityId], references: [id])
-  leads        Lead[]
-  offers       Offer[]
+  university     University     @relation(fields: [universityId], references: [id])
+  leads          Lead[]
+  offers         Offer[]
+  discountRules  DiscountRule[]
 }
 
 model Offer {
@@ -214,6 +227,49 @@ model Offer {
   course       Course    @relation(fields: [courseId], references: [id])
 }
 
+// ── REGRAS DE DESCONTO ENEM ────────────────────────────────────────────────────
+
+model DiscountRule {
+  id                  String        @id @default(cuid())
+  universityId        String
+  university          University    @relation(fields: [universityId], references: [id])
+  courseId            String?       // null = aplica a todos os cursos da universidade
+  course              Course?       @relation(fields: [courseId], references: [id])
+
+  scoreMin            Float         // Nota mínima ENEM
+  scoreMax            Float?        // Nota máxima (null = sem limite superior)
+  discountPercent     Float         // Ex: 25.0 = 25%
+
+  modalityRestriction ModalityType? // null = todas as modalidades
+  vacanciesLimit      Int?          // null = ilimitado
+  vacanciesUsed       Int           @default(0)
+
+  validFrom           DateTime
+  validUntil          DateTime?     // null = sem prazo
+
+  active              Boolean       @default(false) // inativo até aprovação admin
+  approvedAt          DateTime?
+  approvedBy          String?
+
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  leads               LeadDiscount[]
+}
+
+model LeadDiscount {
+  id               String       @id @default(cuid())
+  leadId           String
+  lead             Lead         @relation(fields: [leadId], references: [id])
+  discountRuleId   String
+  discountRule     DiscountRule @relation(fields: [discountRuleId], references: [id])
+  scoreUsed        Float
+  discountApplied  Float
+  priceOriginal    Float
+  priceFinal       Float
+  createdAt        DateTime     @default(now())
+}
+
 model Lead {
   id           String     @id @default(cuid())
   name         String
@@ -228,10 +284,21 @@ model Lead {
   openedAt     DateTime?
   universityId String
   courseId     String?
+  enemScore    Float?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   course       Course?    @relation(fields: [courseId], references: [id])
   university   University @relation(fields: [universityId], references: [id])
+  discounts    LeadDiscount[]
+}
+
+model EnemInterest {
+  id        String   @id @default(cuid())
+  email     String
+  score     Float
+  createdAt DateTime @default(now())
+
+  @@index([email])
 }
 
 model UniversityUser {

@@ -50,6 +50,12 @@ export default async function UniversityPage({ params }: { params: { slug: strin
     notFound()
   }
 
+  let discounts: any[] = []
+  try {
+    discounts = await api.get(`/discount-rules/university/${params.slug}`)
+    if (!Array.isArray(discounts)) discounts = []
+  } catch { discounts = [] }
+
   const approvedReviews = uni.reviews ?? []
   const avgRating = approvedReviews.length
     ? (approvedReviews.reduce((acc: number, r: any) => acc + r.rating, 0) / approvedReviews.length).toFixed(1)
@@ -516,6 +522,31 @@ export default async function UniversityPage({ params }: { params: { slug: strin
                 </div>
               )}
             </div>
+
+            {/* Descontos ENEM */}
+            {discounts.length > 0 && (
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6">
+                <h2 className="text-base font-semibold text-gray-900 mb-1">Descontos ENEM</h2>
+                <p className="text-xs text-gray-500 mb-4">Descontos disponíveis para quem tem nota no ENEM</p>
+                <div className="space-y-2">
+                  {discounts.map((d: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between bg-white rounded-xl px-3 py-2.5 border border-green-100">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-gray-700 truncate">
+                          {d.faixaLabel}
+                          {d.course && <span className="ml-1 text-gray-400">· {d.course.name}</span>}
+                        </p>
+                        {d.modalityRestriction && (
+                          <p className="text-xs text-gray-400">{d.modalityRestriction}</p>
+                        )}
+                      </div>
+                      <span className="ml-3 text-lg font-bold text-green-700 shrink-0">{d.discountPercent}%</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-3">* Sujeito a disponibilidade de vagas e vigência</p>
+              </div>
+            )}
 
             {/* Lead form */}
             <div className="bg-white border rounded-2xl p-6">

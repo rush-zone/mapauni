@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 interface Stats {
@@ -8,9 +9,11 @@ interface Stats {
   active: number
   leads: number
   reviews: number
+  courses: number
 }
 
 export default function AdminDashboardPage() {
+  const router = useRouter()
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -21,18 +24,24 @@ export default function AdminDashboardPage() {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => {
+        if (r.status === 401) {
+          localStorage.removeItem('admin_token')
+          router.replace('/admin/login')
+          throw new Error('Sessão expirada')
+        }
         if (!r.ok) throw new Error('Falha ao carregar stats')
         return r.json()
       })
       .then(setStats)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
-  }, [])
+  }, [router])
 
   const cards = stats
     ? [
         { label: 'Total de IES', value: stats.universities.toLocaleString('pt-BR') },
         { label: 'IES Ativas', value: stats.active.toLocaleString('pt-BR') },
+        { label: 'Cursos cadastrados', value: stats.courses.toLocaleString('pt-BR') },
         { label: 'Leads captados', value: stats.leads.toLocaleString('pt-BR') },
         { label: 'Avaliações', value: stats.reviews.toLocaleString('pt-BR') },
       ]
@@ -53,12 +62,12 @@ export default function AdminDashboardPage() {
 
       {loading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
+          {[...Array(5)].map((_, i) => (
             <div key={i} className="bg-white rounded-xl p-6 animate-pulse h-24" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           {cards.map((card) => (
             <div key={card.label} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
               <p className="text-sm text-gray-500">{card.label}</p>

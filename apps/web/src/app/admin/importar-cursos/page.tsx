@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { ImportLogTable } from '../ImportLogTable'
 
 interface ImportResult {
   message: string
@@ -230,6 +231,8 @@ export default function ImportarCursosPage() {
           )}
         </div>
       )}
+
+      <ImportLogTable type="courses" />
     </div>
   )
 }

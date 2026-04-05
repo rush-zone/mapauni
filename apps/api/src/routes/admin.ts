@@ -253,6 +253,7 @@ async function batchImportCourses(records: Record<string, string>[]) {
       const vagas = vagasStr ? parseInt(vagasStr.replace(/\D/g, '')) || null : null
       const conceito = cpcStr ? parseFloat(cpcStr.replace(',', '.')) || null : null
       const isAtivo = !situacao || situacao.toLowerCase().includes('atividade') || situacao.toLowerCase() === 'ativo'
+      const areaOcde = fixMojibake(col(row, 'AREA_OCDE') || col(row, 'AREA_OCDE_CINE') || grauRaw || 'Geral')
       const key = `${universityId}:${codigoCurso}`
 
       if (seenKeys.has(key)) { result.skipped++; continue }
@@ -266,7 +267,7 @@ async function batchImportCourses(records: Record<string, string>[]) {
         cursosToCreate.push({ universityId, codigoEmec: codigoCurso, ...cursoData })
       }
 
-      const courseData = { name: nomeCurso, degree: grau, modality: modalidade, area: grauRaw || 'Geral', active: isAtivo, enade: conceito }
+      const courseData = { name: nomeCurso, degree: grau, modality: modalidade, area: areaOcde, active: isAtivo, enade: conceito }
 
       if (courseMap.has(key)) {
         coursesToUpdate.push({ id: courseMap.get(key)!, data: courseData })
@@ -339,13 +340,14 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   // ── GET /admin/stats ─────────────────────────────────────────────────────
   fastify.get('/stats', { preHandler: authenticateAdmin }, async () => {
-    const [universities, active, leads, reviews] = await Promise.all([
+    const [universities, active, leads, reviews, courses] = await Promise.all([
       prisma.university.count(),
       prisma.university.count({ where: { isActive: true } }),
       prisma.lead.count(),
       prisma.review.count(),
+      prisma.course.count(),
     ])
-    return { universities, active, leads, reviews }
+    return { universities, active, leads, reviews, courses }
   })
 
   // ── POST /admin/import/universities ──────────────────────────────────────
@@ -364,6 +366,17 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
 
     const result = await batchUpsertUniversities(records)
+
+    await prisma.importLog.create({
+      data: {
+        type: 'universities',
+        fileName: file.filename || null,
+        total: records.length,
+        created: result.created,
+        updated: result.updated,
+        skipped: result.skipped,
+      },
+    }).catch(() => {}) // não falha se log não salvar
 
     return reply.send({
       message: 'Importação concluída',
@@ -391,6 +404,17 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     const result = await batchImportCourses(records)
 
+    await prisma.importLog.create({
+      data: {
+        type: 'courses',
+        fileName: file.filename || null,
+        total: records.length,
+        created: result.created,
+        updated: result.updated,
+        skipped: result.skipped,
+      },
+    }).catch(() => {})
+
     return reply.send({
       message: 'Importação de cursos concluída',
       total: records.length,
@@ -398,6 +422,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
       ...result,
       detectedColumns,
     })
+  })
+
+  // ── GET /admin/import-logs ────────────────────────────────────────────────
+  fastify.get('/import-logs', { preHandler: authenticateAdmin }, async () => {
+    const logs = await prisma.importLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    })
+    return logs
   })
 
   // ── GET /admin/universities ───────────────────────────────────────────────
@@ -444,5 +477,29 @@ export async function adminRoutes(fastify: FastifyInstance) {
     ])
 
     return { data, total, page: query.page, pages: Math.ceil(total / query.limit) }
+  })
+
+  // ── PATCH /admin/universities/:id ─────────────────────────────────────────
+  fastify.patch('/universities/:id', { preHandler: authenticateAdmin }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = z.object({
+      name: z.string().min(2).optional(),
+      sigla: z.string().optional().nullable(),
+      type: z.enum(['FEDERAL', 'ESTADUAL', 'MUNICIPAL', 'PRIVADA']).optional(),
+      city: z.string().optional(),
+      state: z.string().length(2).optional(),
+      plan: z.enum(['PREMIUM', 'PRO']).optional(),
+      isActive: z.boolean().optional(),
+      email: z.string().email().optional().nullable(),
+      phone: z.string().optional().nullable(),
+      website: z.string().optional().nullable(),
+      description: z.string().optional().nullable(),
+    }).parse(request.body)
+
+    const university = await prisma.university.update({
+      where: { id },
+      data: { ...body, state: body.state?.toUpperCase() },
+    })
+    return university
   })
 }
