@@ -92,52 +92,56 @@ export function SearchFilters({ params, modo }: Props) {
     }
 
     async function fromIp() {
+      const ufMap: Record<string,string> = {
+        'acre':'AC','alagoas':'AL','amapá':'AP','amazonas':'AM','bahia':'BA',
+        'ceará':'CE','distrito federal':'DF','espírito santo':'ES','goiás':'GO',
+        'maranhão':'MA','mato grosso':'MT','mato grosso do sul':'MS','minas gerais':'MG',
+        'pará':'PA','paraíba':'PB','paraná':'PR','pernambuco':'PE','piauí':'PI',
+        'rio de janeiro':'RJ','rio grande do norte':'RN','rio grande do sul':'RS',
+        'rondônia':'RO','roraima':'RR','santa catarina':'SC','são paulo':'SP',
+        'sergipe':'SE','tocantins':'TO',
+      }
+
+      // ipinfo.io
       try {
-        const res  = await fetch('https://ipapi.co/json/')
+        const res  = await fetch('https://ipinfo.io/json')
         const data = await res.json()
-        if (data.country_code !== 'BR') return
-        const stateUf = data.region_code as string || null
-        const city    = (data.city as string) || ''
-        saveCache(stateUf, city)
-        applyLocation(stateUf, city)
+        if (data.country === 'BR' && !data.bogon) {
+          const stateUf = ufMap[data.region?.toLowerCase()] ?? null
+          const city    = data.city || ''
+          saveCache(stateUf, city)
+          applyLocation(stateUf, city)
+          return
+        }
+      } catch {}
+
+      // Fallback: freeipapi.com
+      try {
+        const res  = await fetch('https://freeipapi.com/api/json')
+        const data = await res.json()
+        if (data.countryCode === 'BR') {
+          const stateUf = ufMap[data.regionName?.toLowerCase()] ?? null
+          const city    = data.cityName || ''
+          saveCache(stateUf, city)
+          applyLocation(stateUf, city)
+        }
       } catch {}
     }
 
-    // Check cache (24h)
+    // Check cache (24h) — only use if both state and city are present
     try {
       const raw = localStorage.getItem('infouni_geo')
       if (raw) {
         const cached = JSON.parse(raw)
-        if (Date.now() - cached.ts < 24 * 60 * 60 * 1000 && (cached.state || cached.city)) {
-          applyLocation(cached.state, cached.city || '')
+        if (Date.now() - cached.ts < 24 * 60 * 60 * 1000 && cached.state && cached.city) {
+          applyLocation(cached.state, cached.city)
           return
         }
       }
     } catch {}
 
-    // Try browser geolocation (more precise), fall back to IP on denial/error
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          try {
-            const res = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`,
-              { headers: { 'Accept-Language': 'pt-BR' } }
-            )
-            const data = await res.json()
-            const rawState = (data.address?.state ?? '').replace(/^Estado d[eo] /i, '').trim()
-            const stateUf  = STATE_NAME_TO_UF[rawState.toLowerCase()] ?? null
-            const city: string = data.address?.city || data.address?.town || data.address?.municipality || ''
-            saveCache(stateUf, city)
-            applyLocation(stateUf, city)
-          } catch { fromIp() }
-        },
-        () => fromIp(), // denied or unavailable → IP fallback
-        { timeout: 6000 }
-      )
-    } else {
-      fromIp()
-    }
+    // Always use IP (GPS on desktop has no city precision)
+    fromIp()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function updateFilter(key: string, value: string) {

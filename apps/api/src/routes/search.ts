@@ -101,10 +101,15 @@ export async function searchRoutes(app: FastifyInstance) {
 
   // ── GET /search/areas ─────────────────────────────────────────────────────
   app.get('/areas', async (request) => {
-    const { q } = request.query as { q?: string }
+    const { q, city, state } = request.query as { q?: string; city?: string; state?: string }
 
     const areaWhere: any = { active: true }
     if (q) areaWhere.area = { contains: q, mode: 'insensitive' }
+    if (city || state) {
+      areaWhere.university = {}
+      if (city)  areaWhere.university.city  = { contains: city, mode: 'insensitive' }
+      if (state) areaWhere.university.state = state.toUpperCase()
+    }
 
     const areas: any[] = await (prisma.course.groupBy as any)({
       by: ['area'],
@@ -154,7 +159,7 @@ export async function searchRoutes(app: FastifyInstance) {
 
   // ── GET /search/autocomplete?q=texto&modo=cursos|universidades ───────────
   app.get('/autocomplete', async (request) => {
-    const { q, modo } = request.query as { q?: string; modo?: string }
+    const { q, modo, city, state } = request.query as { q?: string; modo?: string; city?: string; state?: string }
     const term = (q || '').trim()
     if (term.length < 2) return { suggestions: [] }
 
@@ -197,7 +202,16 @@ export async function searchRoutes(app: FastifyInstance) {
         take: 5,
       }),
       isUniMode ? Promise.resolve([]) : prisma.course.findMany({
-        where: { name: { contains: term, mode: 'insensitive' }, active: true },
+        where: {
+          name: { contains: term, mode: 'insensitive' },
+          active: true,
+          ...(city || state ? {
+            university: {
+              ...(city  ? { city:  { contains: city,  mode: 'insensitive' } } : {}),
+              ...(state ? { state: state.toUpperCase() } : {}),
+            },
+          } : {}),
+        },
         select: { name: true },
         distinct: ['name'],
         orderBy: { name: 'asc' },

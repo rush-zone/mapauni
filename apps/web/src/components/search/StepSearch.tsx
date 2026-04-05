@@ -27,6 +27,7 @@ export function StepSearch() {
   const [cities, setCities]           = useState<string[]>([])
   const [citiesLoading, setCitiesLoading] = useState(false)
   const [courseSuggestions, setCourseSuggestions] = useState<string[]>([])
+  const [topAreas, setTopAreas]       = useState<string[]>([])
 
   const [stateOpen, setStateOpen]   = useState(false)
   const [cityOpen, setCityOpen]     = useState(false)
@@ -54,33 +55,11 @@ export function StepSearch() {
         }
       } catch {}
 
-      // No cache → detect via browser geolocation or IP
-      if (!stateUf && !cityName) {
-        const geo = await new Promise<{ state: string | null; city: string }>(resolve => {
-          if (typeof navigator !== 'undefined' && navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-              async (pos) => {
-                try {
-                  const res  = await fetch(
-                    `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`,
-                    { headers: { 'Accept-Language': 'pt-BR' } }
-                  )
-                  const data = await res.json()
-                  const raw  = (data.address?.state ?? '').replace(/^Estado d[eo] /i, '').trim().toLowerCase()
-                  const ufMap: Record<string,string> = Object.fromEntries(STATES.map(([u,n]) => [n.toLowerCase(), u]))
-                  const city = data.address?.city || data.address?.town || data.address?.municipality || ''
-                  resolve({ state: ufMap[raw] ?? null, city })
-                } catch { resolve(await fromIp()) }
-              },
-              async () => resolve(await fromIp()),
-              { timeout: 10000 }
-            )
-          } else {
-            fromIp().then(resolve)
-          }
-        })
-        stateUf  = geo.state
-        cityName = geo.city
+      // If cache missing or incomplete, detect via IP
+      if (!stateUf || !cityName) {
+        const ip = await fromIp()
+        if (!stateUf) stateUf  = ip.state
+        if (!cityName) cityName = ip.city
         try { localStorage.setItem('infouni_geo', JSON.stringify({ state: stateUf, city: cityName, ts: Date.now() })) } catch {}
       }
 
@@ -94,22 +73,23 @@ export function StepSearch() {
     async function fromIp(): Promise<{ state: string | null; city: string }> {
       const ufMap: Record<string,string> = Object.fromEntries(STATES.map(([u,n]) => [n.toLowerCase(), u]))
 
-      // Try ipapi.co — returns region_code as UF directly (e.g. "RJ")
+      // ipinfo.io — returns region (full name) and city
       try {
-        const res  = await fetch('https://ipapi.co/json/')
+        const res  = await fetch('https://ipinfo.io/json')
         const data = await res.json()
-        if (!data.error && data.country_code === 'BR') {
-          return { state: data.region_code || null, city: data.city || '' }
+        if (data.country === 'BR' && !data.bogon) {
+          const stateUf = ufMap[data.region?.toLowerCase()] ?? null
+          return { state: stateUf, city: data.city || '' }
         }
       } catch {}
 
-      // Fallback: ipwho.is — returns full region name, need to map to UF
+      // Fallback: freeipapi.com — returns regionName and cityName
       try {
-        const res  = await fetch('https://ipwho.is/')
+        const res  = await fetch('https://freeipapi.com/api/json')
         const data = await res.json()
-        if (data.success && data.country_code === 'BR') {
-          const stateUf = ufMap[data.region?.toLowerCase()] ?? null
-          return { state: stateUf, city: data.city || '' }
+        if (data.countryCode === 'BR') {
+          const stateUf = ufMap[data.regionName?.toLowerCase()] ?? null
+          return { state: stateUf, city: data.cityName || '' }
         }
       } catch {}
 
@@ -130,25 +110,53 @@ export function StepSearch() {
     return () => document.removeEventListener('mousedown', handle)
   }, [])
 
-  // Fetch cities when state changes
+  // Fetch cities when state changes, then normalize auto-detected city to exact API spelling
   useEffect(() => {
     if (!state) { setCities([]); return }
     setCitiesLoading(true)
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/universities/cities?state=${state[0]}`)
       .then(r => r.json())
-      .then(data => setCities(Array.isArray(data) ? data : []))
+      .then(data => {
+        const list: string[] = Array.isArray(data) ? data : []
+        setCities(list)
+        // Normalize: match auto-detected city to exact API city name
+        setCity(prev => {
+          if (!prev) return prev
+          const exact = list.find(c => c.toLowerCase() === prev.toLowerCase())
+          if (exact) return exact
+          const partial = list.find(c =>
+            c.toLowerCase().includes(prev.toLowerCase()) ||
+            prev.toLowerCase().includes(c.toLowerCase())
+          )
+          return partial ?? prev // keep original IP city if no match
+        })
+      })
       .catch(() => setCities([]))
       .finally(() => setCitiesLoading(false))
   }, [state])
 
-  // Fetch course suggestions (debounced)
+  // Fetch popular areas filtered by selected state/city
+  async function loadTopAreas() {
+    setTopAreas([])
+    try {
+      const p = new URLSearchParams()
+      if (state) p.set('state', state[0])
+      if (city)  p.set('city', city)
+      const res  = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/search/areas?${p.toString()}`)
+      const data = await res.json()
+      setTopAreas((data as any[]).slice(0, 10).map((a: any) => a.area).filter(Boolean))
+    } catch {}
+  }
+
+  // Fetch course suggestions (debounced), filtered by state/city
   useEffect(() => {
     if (courseQuery.length < 2) { setCourseSuggestions([]); return }
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/search/autocomplete?q=${encodeURIComponent(courseQuery)}&modo=cursos`
-        )
+        const p = new URLSearchParams({ q: courseQuery, modo: 'cursos' })
+        if (state) p.set('state', state[0])
+        if (city)  p.set('city', city)
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/search/autocomplete?${p.toString()}`)
         const data = await res.json()
         const courses = (data.suggestions || [])
           .filter((s: any) => s.type === 'course')
@@ -157,7 +165,7 @@ export function StepSearch() {
       } catch { setCourseSuggestions([]) }
     }, 250)
     return () => clearTimeout(t)
-  }, [courseQuery])
+  }, [courseQuery, state, city])
 
   function selectState(abbr: string, name: string) {
     setState([abbr, name])
@@ -167,6 +175,7 @@ export function StepSearch() {
     setCityQuery('')
     setCourse('')
     setCourseQuery('')
+    setTopAreas([])
   }
 
   function selectCity(c: string) {
@@ -175,6 +184,7 @@ export function StepSearch() {
     setCityOpen(false)
     setCourse('')
     setCourseQuery('')
+    setTopAreas([])
   }
 
   function selectCourse(c: string) {
@@ -356,11 +366,11 @@ export function StepSearch() {
         {/* ── Step 3: Curso ──────────────────────────────────────── */}
         <div
           ref={courseRef}
-          className={`relative md:flex-1 transition-all duration-300 ${city ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}
+          className={`relative md:flex-1 transition-all duration-300 ${state ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}
         >
           <StepLabel step={3} active={step >= 3} done={!!course} label="Curso ou Universidade" />
           <div className={`flex items-center gap-2 px-3 py-3 rounded-xl border-2 bg-white transition-all ${
-            !city ? 'border-slate-200 bg-slate-50'
+            !state ? 'border-slate-200 bg-slate-50'
             : courseOpen ? 'border-blue-500 ring-4 ring-blue-50'
             : 'border-blue-500 ring-4 ring-blue-50'
           }`}>
@@ -369,9 +379,9 @@ export function StepSearch() {
               type="text"
               value={courseQuery}
               onChange={e => { setCourseQuery(e.target.value); setCourse(''); setCourseOpen(true) }}
-              onFocus={() => setCourseOpen(true)}
-              placeholder={city ? 'Curso ou universidade...' : 'Primeiro a cidade'}
-              disabled={!city}
+              onFocus={() => { setCourseOpen(true); loadTopAreas() }}
+              placeholder={state ? 'Ex: Medicina, Direito, Engenharia...' : 'Primeiro o estado'}
+              disabled={!state}
               className="flex-1 bg-transparent border-0 outline-none text-sm text-slate-900 placeholder-slate-400 disabled:cursor-not-allowed min-w-0"
             />
             {courseQuery && (
@@ -382,15 +392,30 @@ export function StepSearch() {
             )}
           </div>
 
-          {courseOpen && courseQuery.length >= 2 && courseSuggestions.length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-52 overflow-y-auto">
-              {courseSuggestions.map((c, i) => (
-                <button key={i} type="button" onClick={() => selectCourse(c)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-blue-50 transition-colors text-slate-700">
-                  <BookOpen size={11} className="text-blue-400 flex-shrink-0" />
-                  {c}
-                </button>
-              ))}
+          {courseOpen && (
+            <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-72 overflow-y-auto">
+              {courseQuery.length >= 2 ? (
+                courseSuggestions.length > 0
+                  ? courseSuggestions.map((c, i) => (
+                      <button key={i} type="button" onClick={() => selectCourse(c)}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm hover:bg-blue-50 transition-colors text-slate-700">
+                        <BookOpen size={13} className="text-blue-400 flex-shrink-0" />
+                        <span className="flex-1">{c}</span>
+                      </button>
+                    ))
+                  : <p className="px-4 py-3 text-xs text-slate-400">Nenhum curso encontrado</p>
+              ) : topAreas.length > 0 ? (
+                <>
+                  <p className="px-4 pt-3 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Áreas populares</p>
+                  {topAreas.map((area, i) => (
+                    <button key={i} type="button" onClick={() => selectCourse(area)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-blue-50 transition-colors text-slate-700">
+                      <BookOpen size={13} className="text-blue-300 flex-shrink-0" />
+                      <span className="flex-1">{area}</span>
+                    </button>
+                  ))}
+                </>
+              ) : null}
             </div>
           )}
         </div>

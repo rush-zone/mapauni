@@ -56,9 +56,8 @@ export default async function HomePage() {
 
       {/* Hero */}
       <section className="pt-14">
-        <div className="max-w-6xl mx-auto px-6 pt-20 pb-16">
+        <div className="max-w-6xl mx-auto px-6 pt-20 pb-6">
           <div className="max-w-3xl">
-
             {/* Eyebrow */}
             <div className="inline-flex items-center gap-2 mb-8 px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50">
               <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />
@@ -78,12 +77,14 @@ export default async function HomePage() {
             <p className="text-lg text-slate-500 mb-10 max-w-xl leading-relaxed">
               Compare cursos e universidades em todo o Brasil com dados oficiais do MEC. Filtre por nota ENEM, localização, modalidade e muito mais.
             </p>
+          </div>
+        </div>
 
-            {/* Search */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 max-w-sm md:max-w-none"
-              style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
-              <StepSearch />
-            </div>
+        {/* Search — full width of the 6xl container */}
+        <div className="max-w-6xl mx-auto px-6 pb-16">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6"
+            style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
+            <StepSearch />
           </div>
         </div>
       </section>
