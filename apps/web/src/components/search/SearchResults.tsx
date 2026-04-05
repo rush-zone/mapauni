@@ -40,7 +40,7 @@ export async function SearchResults({ params }: SearchResultsProps) {
     try {
       const fallback = new URLSearchParams(query.toString())
       fallback.delete('city')
-      const r = await api.get(`/search?${fallback.toString()}`)
+      const r = await api.get(`/search?${fallback.toString()}`) as any
       if (r.meta.total > 0) { results = r; broadenedToState = true }
     } catch {}
   }
