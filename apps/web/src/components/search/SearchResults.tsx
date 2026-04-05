@@ -27,10 +27,22 @@ export async function SearchResults({ params }: SearchResultsProps) {
   query.set('page', String(page))
 
   let results: any = { data: [], meta: { total: 0 } }
+  let broadenedToState = false
+
   try {
     results = await api.get(`/search?${query.toString()}`)
   } catch {
     return <div className="text-sm text-red-500 p-4">Erro ao carregar resultados.</div>
+  }
+
+  // If city filter returned nothing, retry with state only
+  if (results.meta.total === 0 && params.city && params.state) {
+    try {
+      const fallback = new URLSearchParams(query.toString())
+      fallback.delete('city')
+      const r = await api.get(`/search?${fallback.toString()}`)
+      if (r.meta.total > 0) { results = r; broadenedToState = true }
+    } catch {}
   }
 
   const totalPages = Math.ceil(results.meta.total / LIMIT)
@@ -56,6 +68,11 @@ export async function SearchResults({ params }: SearchResultsProps) {
 
   return (
     <div>
+      {broadenedToState && params.city && (
+        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-700">
+          <span>Nenhum curso encontrado em <strong>{params.city}</strong> — mostrando cursos disponíveis no estado.</span>
+        </div>
+      )}
       <p className="text-xs text-slate-400 mb-4 font-medium">
         <span className="text-slate-700 font-semibold">{results.meta.total.toLocaleString('pt-BR')}</span>
         {' '}resultado{results.meta.total !== 1 ? 's' : ''} encontrado{results.meta.total !== 1 ? 's' : ''}
