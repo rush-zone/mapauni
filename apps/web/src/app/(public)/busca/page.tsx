@@ -28,8 +28,8 @@ export default function SearchPage({ searchParams }: SearchPageProps) {
   const hasQ       = !!searchParams.q
   const hasCourse  = !!(searchParams.modality || searchParams.shift || searchParams.degree)
 
-  // When q is set, default to courses tab; otherwise universities
-  const modo = searchParams.modo ?? (hasQ ? 'cursos' : 'universidades')
+  // When q or city is set, default to courses; otherwise universities
+  const modo = searchParams.modo ?? (hasQ || hasCity ? 'cursos' : 'universidades')
 
   // State-only → show state browser (click city to drill down)
   const showStateBrowser = hasState && !hasCity && !hasQ && !hasCourse
@@ -103,8 +103,8 @@ export default function SearchPage({ searchParams }: SearchPageProps) {
           {/* Results */}
           <div className="flex-1 min-w-0">
 
-            {/* Tabs — only when q is set */}
-            {hasQ && !showStateBrowser && (
+            {/* Tabs — when q or city is set */}
+            {(hasQ || hasCity) && !showStateBrowser && (
               <div className="flex gap-1 mb-5 border-b border-slate-100">
                 {[
                   { key: 'cursos', label: 'Cursos' },
@@ -139,7 +139,7 @@ export default function SearchPage({ searchParams }: SearchPageProps) {
             }>
               {showStateBrowser
                 ? <StateBrowser selectedState={searchParams.state} />
-                : modo === 'cursos' && hasQ
+                : modo === 'cursos'
                   ? <SearchResults params={searchParams} />
                   : <UniversityRichResults params={searchParams} />
               }

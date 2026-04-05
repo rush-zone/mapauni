@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Search, MapPin, BookOpen, Building2, Loader2, GraduationCap, Globe, Navigation } from 'lucide-react'
 import Link from 'next/link'
 
@@ -61,6 +61,7 @@ export function SmartSearchBar({ compact = false, initialValue = '', initialModo
   const wrapperRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   // Geolocation — full mode only, pre-fill city if no initialValue
   useEffect(() => {
@@ -139,6 +140,15 @@ export function SmartSearchBar({ compact = false, initialValue = '', initialModo
     const raw = input.trim()
     if (!raw) return
     const p = new URLSearchParams()
+
+    // In compact mode, preserve current city/state from URL if not overridden by input
+    if (compact) {
+      const currentCity  = searchParams.get('city')
+      const currentState = searchParams.get('state')
+      if (currentCity)  p.set('city', currentCity)
+      if (currentState) p.set('state', currentState)
+    }
+
     // If input has comma → first part = city, rest = query
     if (raw.includes(',')) {
       const parts = raw.split(',').map(s => s.trim()).filter(Boolean)
