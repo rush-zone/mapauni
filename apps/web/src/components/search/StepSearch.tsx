@@ -135,33 +135,59 @@ export function StepSearch() {
       .finally(() => setCitiesLoading(false))
   }, [state])
 
-  // Fetch popular areas filtered by selected state/city
+  // Fetch popular areas: try city → state → all (fallback chain)
   async function loadTopAreas() {
     setTopAreas([])
+    const base = `${process.env.NEXT_PUBLIC_API_URL}/search/areas`
+    const toAreas = (data: any[]) =>
+      data.filter(Boolean).map((a: any) => a.area).filter(Boolean).slice(0, 10)
+
     try {
-      const p = new URLSearchParams()
-      if (state) p.set('state', state[0])
-      if (city)  p.set('city', city)
-      const res  = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/search/areas?${p.toString()}`)
-      const data = await res.json()
-      setTopAreas((data as any[]).slice(0, 10).map((a: any) => a.area).filter(Boolean))
+      // 1. With city + state
+      if (city && state) {
+        const r = await fetch(`${base}?state=${state[0]}&city=${encodeURIComponent(city)}`)
+        const d = await r.json()
+        if (Array.isArray(d) && d.length > 0) { setTopAreas(toAreas(d)); return }
+      }
+      // 2. State only
+      if (state) {
+        const r = await fetch(`${base}?state=${state[0]}`)
+        const d = await r.json()
+        if (Array.isArray(d) && d.length > 0) { setTopAreas(toAreas(d)); return }
+      }
+      // 3. No filter (nationwide popular areas)
+      const r = await fetch(base)
+      const d = await r.json()
+      if (Array.isArray(d)) setTopAreas(toAreas(d))
     } catch {}
   }
 
-  // Fetch course suggestions (debounced), filtered by state/city
+  // Fetch course suggestions (debounced): try city → state → no location filter
   useEffect(() => {
     if (courseQuery.length < 2) { setCourseSuggestions([]); return }
     const t = setTimeout(async () => {
+      const base = `${process.env.NEXT_PUBLIC_API_URL}/search/autocomplete`
+      const extract = (data: any) =>
+        (data.suggestions || []).filter((s: any) => s.type === 'course').map((s: any) => s.label)
       try {
+        // 1. With city + state
+        if (city && state) {
+          const p = new URLSearchParams({ q: courseQuery, modo: 'cursos', state: state[0], city })
+          const d = await fetch(`${base}?${p}`).then(r => r.json())
+          const c = extract(d)
+          if (c.length > 0) { setCourseSuggestions(c); return }
+        }
+        // 2. State only
+        if (state) {
+          const p = new URLSearchParams({ q: courseQuery, modo: 'cursos', state: state[0] })
+          const d = await fetch(`${base}?${p}`).then(r => r.json())
+          const c = extract(d)
+          if (c.length > 0) { setCourseSuggestions(c); return }
+        }
+        // 3. No location filter
         const p = new URLSearchParams({ q: courseQuery, modo: 'cursos' })
-        if (state) p.set('state', state[0])
-        if (city)  p.set('city', city)
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/search/autocomplete?${p.toString()}`)
-        const data = await res.json()
-        const courses = (data.suggestions || [])
-          .filter((s: any) => s.type === 'course')
-          .map((s: any) => s.label)
-        setCourseSuggestions(courses)
+        const d = await fetch(`${base}?${p}`).then(r => r.json())
+        setCourseSuggestions(extract(d))
       } catch { setCourseSuggestions([]) }
     }, 250)
     return () => clearTimeout(t)
